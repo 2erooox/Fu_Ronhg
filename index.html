@@ -1,0 +1,2065 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>Dream Character Chat</title>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-main: #333333;
+            --text-sub: #999999;
+            --border-color: #f0f0f0;
+            --settings-bg: #f2f2f7;
+            --ring-color: #d6d6d6;
+            --quote-name-color: #7892a5; 
+            --quote-bg: transparent;
+            
+            --user-bubble-bg: #828282;
+            --user-font-color: #ffffff;
+            --dream-bubble-bg: #f2f2f7;
+            --dream-font-color: #1c1c1e;
+            --global-icon-color: #8e8e93;
+            
+            --panel-bg: #f9f9f9;
+            --item-bg: #ffffff;
+            --input-bg: #f2f2f2;
+        }
+
+        body.dark-mode {
+            --bg-color: #000000;
+            --text-main: #ffffff;
+            --text-sub: #a1a1aa;
+            --border-color: #2c2c2e;
+            --settings-bg: #000000;
+            --ring-color: #38383a;
+            
+            --dream-bubble-bg: #1c1c1e;
+            --dream-font-color: #ffffff;
+            
+            --panel-bg: #1c1c1e;
+            --item-bg: #1c1c1e;
+            --input-bg: #2c2c2e;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+
+        body { background-color: #f7f7f7; display: flex; justify-content: center; align-items: center; min-height: 100vh; -webkit-touch-callout: none; transition: background-color 0.3s; }
+        body.dark-mode { background-color: #000; }
+
+        .phone-container { width: 100%; max-width: 400px; height: 100vh; max-height: 850px; background-color: var(--bg-color); position: relative; display: flex; box-shadow: 0 10px 40px rgba(0,0,0,0.08); overflow: hidden; transition: background-color 0.3s; }
+
+        .view { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; background-color: var(--bg-color); transition: transform 0.35s cubic-bezier(0.33, 1, 0.68, 1), opacity 0.35s ease, background-color 0.3s; }
+        .hidden { display: none !important; }
+
+        .avatar-ring { border: 1px solid var(--ring-color); padding: 4px; display: inline-flex; justify-content: center; align-items: center; background: transparent; }
+
+        /* --- Chat View --- */
+        #chatView { z-index: 1; transform: translateX(0); }
+        #chatView.hidden { transform: translateX(-30%); opacity: 0.5; }
+
+        .header { display: flex; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border-color); background: var(--bg-color); z-index: 10; }
+        .header-avatar-container { display: flex; flex-direction: column; align-items: center; margin-right: 14px; }
+        .header-ring { border-radius: 16px; cursor: pointer; transition: opacity 0.2s; }
+        .header-ring:hover { opacity: 0.8; }
+        .header-avatar { width: 42px; height: 42px; border-radius: 11px; object-fit: cover; }
+        
+        .status-indicator { font-size: 10px; font-weight: 800; color: #999999; margin-top: 4px; text-align: center; width: 100%; word-break: keep-all; white-space: nowrap; transition: opacity 0.2s; }
+        .header-info { flex-grow: 1; position: relative; display: flex; flex-direction: column; justify-content: center; }
+        .breadcrumb { font-size: 11px; color: var(--text-sub); margin-bottom: 4px; font-weight: 500; }
+        .username { font-size: 16px; font-weight: 800; color: var(--text-main); letter-spacing: -0.2px; outline: none; display: inline-block; padding: 2px 0; border-bottom: 1px solid transparent; transition: border-color 0.2s; }
+        .username:focus { border-bottom: 1px dashed var(--text-sub); }
+        
+        .typing-indicator { position: absolute; top: 100%; left: 0; font-size: 11px; color: var(--text-sub); margin-top: 2px; opacity: 0; transition: opacity 0.2s; pointer-events: none; font-weight: 500; }
+        .typing-indicator.active { opacity: 1; }
+
+        .header-actions { display: flex; align-items: center; gap: 8px; }
+        .pin-btn { background: none; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 5px; }
+        .pin-icon { width: 22px; height: 22px; stroke: var(--text-sub); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; transition: stroke 0.2s; }
+        .pin-btn:hover .pin-icon { stroke: var(--text-main); }
+
+        .chat-container { flex-grow: 1; padding: 20px 8px; overflow-y: auto; display: flex; overflow-x: hidden; flex-direction: column; gap: 4px; background-color: var(--bg-color); scroll-behavior: smooth; }
+        .msg-row { display: flex; width: 100%; animation: fadeIn 0.3s ease-out; }
+        .msg-row.right { justify-content: flex-end; }
+        .msg-row.left { justify-content: flex-start; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .sys-time { text-align: center; font-size: 11px; color: #a5a5a5; margin: 12px 0; font-weight: 900; line-height: 1.4; width: 100%; display: flex; justify-content: center; align-items: center; gap: 4px;}
+        .sys-time.danger { color: #d32f2f; }
+        body.dark-mode .sys-time.danger { color: #ff453a; }
+
+        .msg-wrapper { display: flex; flex-direction: column; max-width: 65%; }
+        .msg-wrapper.right-align { align-items: flex-end; margin-right: 6px; }
+        .msg-wrapper.left-align { align-items: flex-start; margin-left: 6px; }
+
+        .quote-outside { font-size: 12px; color: #8e8e93; background: var(--quote-bg); padding: 2px 4px; margin-top: 2px; max-width: 100%; word-wrap: break-word; font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .quote-outside .quote-name { color: var(--quote-name-color); font-weight: 600; }
+
+        .msg-row.right .text-bubble { position: relative; background-color: var(--user-bubble-bg); color: var(--user-font-color); padding: 6px 10px 8px 12px; border-radius: 16px 16px 4px 16px; font-size: 14px; font-weight: 500; letter-spacing: 0.5px; max-width: 100%; word-wrap: break-word; line-height: 1.4; transition: background-color 0.2s, color 0.2s; cursor: pointer; }
+        .msg-row.right .text-bubble::before { content: ''; position: absolute; bottom: 0; right: -6px; width: 12px; height: 14px; background-color: var(--user-bubble-bg); border-bottom-left-radius: 14px; z-index: 1; transition: background-color 0.2s; }
+        .msg-row.right .text-bubble::after { content: ''; position: absolute; bottom: 0; right: -12px; width: 12px; height: 18px; background-color: var(--bg-color); border-bottom-left-radius: 12px; z-index: 2; }
+
+        .msg-row.left .text-bubble-left { position: relative; background-color: var(--dream-bubble-bg); color: var(--dream-font-color); padding: 6px 12px 8px 10px; border-radius: 16px 16px 16px 4px; cursor: pointer; font-size: 14px; font-weight: 500; letter-spacing: 0.5px; max-width: 100%; word-wrap: break-word; line-height: 1.4; transition: background-color 0.2s, color 0.2s; }
+        .msg-row.left .text-bubble-left::before { content: ''; position: absolute; bottom: 0; left: -6px; width: 12px; height: 14px; background-color: var(--dream-bubble-bg); border-bottom-right-radius: 14px; z-index: 1; transition: background-color 0.2s; }
+        .msg-row.left .text-bubble-left::after { content: ''; position: absolute; bottom: 0; left: -12px; width: 12px; height: 18px; background-color: var(--bg-color); border-bottom-right-radius: 12px; z-index: 2; }
+
+        .msg-meta { display: inline-flex; align-items: center; font-size: 9px; margin-left: 6px; opacity: 0.6; vertical-align: bottom; transform: translateY(1px); gap: 2px; font-weight: 400; float: right; margin-top: 5px; }
+        .msg-meta svg { width: 10px; height: 10px; }
+        
+        .msg-meta-sticker { display: inline-flex; align-items: center; font-size: 10px; margin-top: 2px; opacity: 0.65; align-self: flex-end; gap: 3px; font-weight: 400; }
+        .msg-meta-sticker svg { width: 11px; height: 11px; }
+
+        .sticker-bubble-left, .sticker-bubble-right { max-width: 140px; border-radius: 12px; object-fit: contain; background: transparent; cursor: pointer; }
+        .sticker-bubble-right { margin-right: 2px; }
+        .sticker-bubble-left { margin-left: 2px; }
+
+        /* --- 语音气泡特定样式 --- */
+        .voice-text-outside { 
+            font-size: 11px; color: #a5a5a5; font-weight: 900; line-height: 1.4; 
+            margin-top: 4px; padding-bottom: 4px; border-bottom: 1px dashed #a5a5a5; 
+            align-self: flex-start; word-break: break-all; margin-left: 10px; text-align: left;
+        }
+
+        /* --- 转账卡片样式绝对锁定 --- */
+        .transfer-card { width: 245px; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 2px; transition: opacity 0.2s; background: #ffffff !important; }
+        .transfer-card.received { opacity: 0.6; }
+        .transfer-top { background-color: #0036a5 !important; padding: 14px 16px; display: flex; align-items: center; }
+        .apple-logo { width: 38px; height: 38px; fill: #ffffff !important; margin-right: 14px; flex-shrink: 0; }
+        .transfer-content { display: flex; flex-direction: column; color: #ffffff !important; }
+        .transfer-amount { font-size: 19px; font-weight: 800; margin-bottom: 4px; letter-spacing: 0.5px; color: #ffffff !important;}
+        .transfer-sub { font-size: 11px; opacity: 0.9; color: #ffffff !important;}
+        .transfer-bottom { background-color: #ffffff !important; padding: 6px 16px; font-size: 11px; color: #8e8e93 !important; font-weight: 500; }
+
+        /* --- 底部导航及拓展菜单 --- */
+        .footer { display: flex; flex-direction: column; background: var(--bg-color); position: relative; z-index: 10;}
+        .quote-bar { width: 100%; background: var(--panel-bg); padding: 8px 20px; display: none; justify-content: space-between; align-items: center; font-size: 12px; color: #8e8e93; border-top: 1px solid var(--border-color); }
+        .quote-bar.active { display: flex; }
+        .quote-bar-text { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 10px; border-left: 3px solid var(--border-color); padding-left: 8px; font-weight: 500;}
+        .quote-bar-text .quote-name { color: var(--quote-name-color); font-weight: 600;}
+        .quote-bar-close { width: 16px; height: 16px; stroke: #999; fill: none; stroke-width: 2; cursor: pointer; flex-shrink: 0; }
+        
+        .action-panel { width: 100%; background: var(--panel-bg); display: none; padding: 15px 20px; grid-template-columns: repeat(4, 1fr); gap: 15px; border-top: 1px solid var(--border-color); }
+        .action-panel.active { display: grid; }
+        .action-panel-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: opacity 0.2s;}
+        .action-panel-item:active { opacity: 0.6; }
+        .action-panel-icon { width: 50px; height: 50px; background: var(--item-bg); border-radius: 12px; display: flex; justify-content: center; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .action-panel-icon svg { width: 24px; height: 24px; stroke: var(--text-main); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+        .action-panel-text { font-size: 11px; color: var(--text-sub); font-weight: 500; }
+
+        .footer-main { display: flex; align-items: center; padding: 12px 20px 25px 20px; gap: 12px; width: 100%; border-top: 1px solid var(--border-color); }
+        .footer-ring { border-radius: 50%; cursor: pointer; transition: opacity 0.2s; }
+        .footer-ring:hover { opacity: 0.8; }
+        .footer-avatar { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; }
+        .input-bar { flex-grow: 1; background-color: var(--input-bg); border-radius: 20px; height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
+        .text-input { flex-grow: 1; background: transparent; border: none; outline: none; color: var(--text-main); font-size: 14px; font-weight: 500; margin-right: 10px; }
+        .text-input::placeholder { color: #a5a5a5; }
+        .send-icon { width: 18px; height: 18px; fill: none; stroke: #a5a5a5; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; cursor: pointer; transition: stroke 0.2s; }
+        .send-icon:hover { stroke: var(--text-sub); }
+        .hidden-file-input { display: none; }
+
+        /* --- 悬浮横向菜单 (气泡上方横排) --- */
+        .context-menu { position: fixed; background: #333333; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 1000; display: flex; flex-direction: row; align-items: center; overflow: hidden; opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; transform: scale(0.95); }
+        body.dark-mode .context-menu { background: #444444; }
+        .context-menu.active { opacity: 1; pointer-events: auto; transform: scale(1); }
+        .context-menu-item { padding: 10px 16px; font-size: 14px; color: #ffffff; cursor: pointer; text-align: center; border-right: 1px solid #555555; font-weight: 500; }
+        body.dark-mode .context-menu-item { border-right: 1px solid #555555; }
+        .context-menu-item:last-child { border-right: none; }
+        .context-menu-item:active { background: rgba(255,255,255,0.1); }
+        .item-danger { color: #ff453a; }
+
+        /* --- 拨号全屏视图与小窗 --- */
+        .call-float { position: fixed; top: 75px; right: 20px; background: #34c759; color: #fff; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: bold; cursor: pointer; display: none; z-index: 50; box-shadow: 0 4px 12px rgba(0,0,0,0.15); align-items: center; gap: 6px; user-select: none; touch-action: none; }
+        .call-float.active { display: flex; }
+        
+        #callView { z-index: 10000; background: #1c1c1e; transform: translateY(100%); display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 50px 20px; }
+        #callView.active { transform: translateY(0) !important; }
+
+        /* --- Settings Views 通用 --- */
+        .settings-view { z-index: 2; transform: translateX(100%); background-color: var(--settings-bg); }
+        .settings-view.active { transform: translateX(0); }
+        .settings-header { padding: 50px 20px 10px 20px; display: flex; flex-direction: column; background: var(--bg-color); border-bottom: 1px solid var(--border-color);}
+        .header-top-row { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 10px;}
+        .back-btn { background: none; border: none; color: var(--text-sub); font-size: 16px; font-weight: 600; cursor: pointer; display: flex; align-items: center; }
+        .back-btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; margin-right: 4px; }
+        .text-btn { background: none; border: none; font-size: 15px; color: #007aff; font-weight: 600; cursor: pointer; padding: 5px; }
+        .settings-title { font-size: 32px; font-weight: 900; color: var(--text-main); margin-left: 5px; }
+        .settings-content { flex-grow: 1; overflow-y: auto; padding-top: 20px; padding-bottom: 40px; position: relative; }
+        .settings-group { background: var(--item-bg); border-radius: 10px; margin: 0 16px 20px 16px; overflow: hidden; }
+        .settings-item { display: flex; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border-color); min-height: 52px; cursor: pointer; transition: background-color 0.1s;}
+        .settings-item:active { background-color: var(--input-bg); }
+        .settings-item:last-child { border-bottom: none; }
+        .icon-box { width: 28px; height: 28px; border-radius: 6px; display: flex; justify-content: center; align-items: center; margin-right: 12px; }
+        .icon-box svg { width: 18px; height: 18px; fill: #fff; stroke: #fff; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;}
+        .gray-icon { background-color: var(--global-icon-color); transition: background-color 0.2s; }
+        .item-label { font-size: 16px; font-weight: 500; color: var(--text-main); flex-grow: 1; }
+        .arrow-right { width: 16px; height: 16px; stroke: #c7c7cc; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        
+        .profile-card { padding: 16px; }
+        .profile-ring { border-radius: 50%; margin-right: 14px; }
+        .profile-avatar { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; }
+        .profile-info { flex-grow: 1; }
+        .profile-name { font-size: 18px; font-weight: bold; color: var(--text-main); margin-bottom: 2px; }
+        .profile-sub { font-size: 12px; color: var(--text-sub); font-weight: 500;}
+
+        .toggle-switch { width: 48px; height: 28px; background-color: #e9e9eb; border-radius: 14px; position: relative; cursor: pointer; transition: background-color 0.2s; }
+        body.dark-mode .toggle-switch { background-color: #38383a; }
+        .toggle-switch.on { background-color: #34c759; }
+        body.dark-mode .toggle-switch.on { background-color: #30d158; }
+        .toggle-switch::after { content: ''; position: absolute; width: 24px; height: 24px; background: white; border-radius: 50%; top: 2px; left: 2px; transition: transform 0.2s cubic-bezier(0.33, 1, 0.68, 1); box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .toggle-switch.on::after { transform: translateX(20px); }
+
+        #baseSettingsView, #replySettingsView, #stickerView, #pokeView, #statusView, #transferView, #bgView, #userStickerView, #userPokeView, #historyView { z-index: 4; }
+        .settings-avatar-preview { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; margin-right: 8px; }
+        .value-input { text-align: center; border: 1px solid var(--border-color); outline: none; color: var(--text-main); border-radius: 6px; font-size: 15px; background: var(--input-bg); width: 45px; padding: 4px; }
+        .color-picker { appearance: none; -webkit-appearance: none; width: 28px; height: 28px; border: none; border-radius: 50%; overflow: hidden; cursor: pointer; padding: 0; background: none; margin-right: 8px; }
+        .color-picker::-webkit-color-swatch-wrapper { padding: 0; }
+        .color-picker::-webkit-color-swatch { border: none; border-radius: 50%; }
+
+        /* --- 列表与搜索 --- */
+        #zikaView, #stickerView, #pokeView, #statusView, #transferView, #userStickerView, #userPokeView, #historyView { overflow: hidden; }
+        .search-container { padding: 10px 20px; background: var(--bg-color);}
+        .search-bar { background: var(--input-bg); border-radius: 10px; height: 36px; display: flex; align-items: center; padding: 0 10px; }
+        .search-icon { width: 16px; height: 16px; stroke: var(--text-sub); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .search-input { border: none; background: transparent; flex-grow: 1; outline: none; color: var(--text-main); font-size: 15px; margin-left: 8px; }
+        
+        .zika-input-area { background: var(--item-bg); border-radius: 10px; margin: 0 16px 20px 16px; padding: 12px 16px; }
+        .zika-textarea { width: 100%; border: none; outline: none; resize: none; font-size: 15px; color: var(--text-main); min-height: 80px; background: transparent;}
+        .zika-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 10px; gap: 8px; flex-wrap: wrap;}
+        .zika-btn { padding: 6px 12px; border-radius: 16px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; }
+        .zika-btn-primary { background: var(--text-main); color: var(--bg-color); padding: 6px 18px; }
+        .zika-btn-secondary { background: var(--input-bg); color: var(--text-main); }
+        .zika-btn-link { background: transparent; color: #007aff; }
+
+        .zika-category-tabs { display: flex; gap: 8px; overflow-x: auto; margin: 0 16px 10px 16px; padding-bottom: 4px; scrollbar-width: none; }
+        .zika-category-tabs::-webkit-scrollbar { display: none; }
+        .zika-tab { background: var(--input-bg); color: var(--text-sub); font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 14px; white-space: nowrap; cursor: pointer; transition: all 0.2s; }
+        .zika-tab.active { background: var(--text-main); color: var(--bg-color); }
+
+        .zika-list { background: var(--item-bg); border-radius: 10px; margin: 0 16px 80px 16px; overflow: hidden; }
+        .zika-item { display: flex; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border-color); cursor: pointer;}
+        .zika-item:active { background: var(--input-bg); }
+        
+        .c-checkbox { width: 20px; height: 20px; border: 1.5px solid var(--text-sub); border-radius: 50%; margin-right: 12px; cursor: pointer; display: flex; justify-content: center; align-items: center; flex-shrink: 0; }
+        .c-checkbox.checked { background: var(--text-main); border-color: var(--text-main); }
+        .c-checkbox.checked::after { content: ''; width: 9px; height: 4px; border-left: 2px solid var(--bg-color); border-bottom: 2px solid var(--bg-color); transform: rotate(-45deg); margin-bottom: 2px; }
+        
+        .zika-text { font-size: 15px; color: var(--text-main); flex-grow: 1; word-break: break-all; margin-right: 12px; line-height: 1.4; }
+        .zika-tag { font-size: 11px; color: var(--text-sub); background: var(--input-bg); padding: 2px 6px; border-radius: 4px; margin-right: 10px; white-space: nowrap; font-weight: 500;}
+        .zika-delete-btn { background: none; border: none; cursor: pointer; color: #ff3b30; display: flex; align-items: center; justify-content: center; padding: 4px; flex-shrink: 0; }
+        .zika-delete-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none;}
+        .empty-state { text-align: center; padding: 30px 16px; color: var(--text-sub); font-size: 14px; }
+
+        .batch-bar { position: absolute; bottom: 0; left: 0; width: 100%; background: var(--bg-color); border-top: 1px solid var(--border-color); display: flex; padding: 12px 20px 25px 20px; gap: 15px; transform: translateY(100%); transition: transform 0.3s; z-index: 10; }
+        .batch-bar.active { transform: translateY(0); }
+        .batch-bar-btn { flex-grow: 1; padding: 12px; border-radius: 10px; border: none; font-size: 15px; font-weight: 600; cursor: pointer;}
+        .batch-btn-gray { background: var(--input-bg); color: var(--text-main); }
+        .batch-btn-red { background: #ff3b30; color: #fff; }
+
+        /* --- 弹窗体系 --- */
+        .sheet-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 20; }
+        .sheet-overlay.active { opacity: 1; pointer-events: auto; }
+        .sheet-modal { position: absolute; bottom: 0; left: 0; width: 100%; background: var(--item-bg); border-radius: 20px 20px 0 0; padding: 20px; transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.33, 1, 0.68, 1); z-index: 21; display: flex; flex-direction: column; max-height: 65%; }
+        .sheet-modal.active { transform: translateY(0); }
+        
+        .sheet-title { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 20px; color: var(--text-main); }
+        .sheet-add-box { display: flex; gap: 10px; margin-bottom: 15px; }
+        .sheet-add-box input { flex-grow: 1; padding: 10px 12px; border: 1px solid var(--border-color); background: transparent; color: var(--text-main); border-radius: 8px; outline: none; font-size: 14px;}
+        .sheet-add-box button { padding: 0 16px; background: var(--text-main); color: var(--bg-color); border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+        .sheet-cat-list { flex-grow: 1; overflow-y: auto; }
+        .cat-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border-color); }
+        .cat-name { flex-grow: 1; font-size: 16px; font-weight: 500; cursor: pointer; color: var(--text-main); }
+        .cat-del { padding: 4px; color: #ff3b30; cursor: pointer; }
+        
+        .action-sheet-item { padding: 16px; text-align: center; font-size: 16px; font-weight: 500; border-bottom: 1px solid var(--border-color); cursor: pointer;}
+        .action-sheet-item:last-child { border-bottom: none; }
+        .action-sheet-item:active { background: var(--input-bg); }
+
+        /* --- 表情包网格体系 (包含完全显示 contain 与强制层级删除) --- */
+        .sticker-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 0 16px 80px 16px; overflow-y: auto; align-content: flex-start;}
+        .sticker-item { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: transparent; border: 1px solid var(--border-color); cursor: pointer;}
+        .sticker-item img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+        
+        .sticker-checkbox {
+            position: absolute; top: 4px; left: 4px; width: 24px; height: 24px; border: 1.5px solid #fff; border-radius: 50%;
+            background: rgba(0,0,0,0.3); z-index: 10; cursor: pointer; display: flex; justify-content: center; align-items: center;
+        }
+        .sticker-checkbox.checked { background: var(--text-main); border-color: var(--text-main); }
+        .sticker-checkbox.checked::after { content: ''; width: 10px; height: 5px; border-left: 2px solid var(--bg-color); border-bottom: 2px solid var(--bg-color); transform: rotate(-45deg); margin-bottom: 2px; }
+        
+        .sticker-del {
+            position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.6); color: #fff;
+            border-radius: 50%; width: 28px; height: 28px; display: flex; justify-content: center; align-items: center;
+            cursor: pointer; z-index: 20; border: none; padding: 0; outline: none; backdrop-filter: blur(2px);
+        }
+        .sticker-del svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+        .sticker-click-zone { position: absolute; top:0; left:0; width:100%; height:100%; z-index: 5; }
+    </style>
+</head>
+<body>
+
+<div class="phone-container">
+    
+    <!-- === 1. Chat View === -->
+    <div id="chatView" class="view">
+        <header class="header">
+            <div class="header-avatar-container">
+                <input type="file" id="dreamAvatarInput" class="hidden-file-input" accept="image/*">
+                <div class="avatar-ring header-ring" id="dreamAvatarBtn" title="点击更换梦角头像">
+                    <img id="dreamAvatar" class="header-avatar" alt="Dream Avatar">
+                </div>
+                <div class="status-indicator" id="statusIndicator">在线</div>
+            </div>
+            
+            <div class="header-info">
+                <div class="breadcrumb">Main Page &gt; About Me &gt; Messages</div>
+                <div class="username" id="characterName" contenteditable="true" spellcheck="false">@2ofHearts</div>
+                <div class="typing-indicator" id="typingIndicator">对方正在输入…</div>
+            </div>
+            <div class="header-actions">
+                <button class="pin-btn" id="callBtn">
+                    <svg class="pin-icon" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                </button>
+                <button class="pin-btn" id="openSettingsBtn">
+                    <svg class="pin-icon" viewBox="0 0 24 24"><line x1="12" y1="17" x2="12" y2="22"></line><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.68V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3v4.68a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"></path></svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- 通话悬浮小窗 -->
+        <div id="callFloat" class="call-float">
+            <svg viewBox="0 0 24 24" width="14" height="14"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" fill="currentColor"/></svg>
+            <span id="callFloatTimer">00:00:00</span>
+        </div>
+
+        <div class="chat-container" id="chatContainer"></div>
+
+        <footer class="footer">
+            <div class="quote-bar" id="quoteBar">
+                <div class="quote-bar-text" id="quoteBarText"></div>
+                <svg class="quote-bar-close" id="closeQuoteBtn" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </div>
+            
+            <!-- 交互拓展面板 (Action Panel) -->
+            <div class="action-panel" id="actionPanel">
+                <div class="action-panel-item" id="actionStickerBtn">
+                    <div class="action-panel-icon">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>
+                    </div>
+                    <div class="action-panel-text">表情包</div>
+                </div>
+                <div class="action-panel-item" id="actionTransferBtn">
+                    <div class="action-panel-icon">
+                        <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+                    </div>
+                    <div class="action-panel-text">转账</div>
+                </div>
+                <div class="action-panel-item" id="actionPhotoBtn">
+                    <div class="action-panel-icon">
+                        <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                    </div>
+                    <div class="action-panel-text">照片</div>
+                </div>
+                <div class="action-panel-item" id="actionPokeBtn">
+                    <div class="action-panel-icon">
+                        <svg viewBox="0 0 24 24"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
+                    </div>
+                    <div class="action-panel-text">拍一拍</div>
+                </div>
+            </div>
+
+            <div class="footer-main">
+                <input type="file" id="photoFileInputInner" class="hidden-file-input" accept="image/*">
+                <div class="avatar-ring footer-ring" id="footerAvatarBtn">
+                    <img id="userFooterAvatar" class="footer-avatar" alt="User Avatar">
+                </div>
+                <div class="input-bar">
+                    <input type="text" id="messageInput" class="text-input" placeholder="say something..." autocomplete="off">
+                    <svg class="send-icon" id="sendBtn" viewBox="0 0 24 24">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- === 全局横向浮动菜单 === -->
+    <div class="context-menu" id="contextMenu">
+        <div class="context-menu-item" id="menuQuote">引用</div>
+        <div class="context-menu-item item-danger" id="menuAction">删除</div>
+    </div>
+
+    <!-- === 拨号全屏视图 === -->
+    <div id="callView" class="view" style="z-index: 10000; background: #1c1c1e; transform: translateY(100%); flex-direction: column; align-items: center; justify-content: space-between; padding: 50px 20px;">
+        <div style="width: 100%; display: flex; justify-content: flex-start;">
+            <button id="minimizeCallBtn" style="background: none; border: none; color: #fff; cursor: pointer; padding: 10px;">
+                <svg viewBox="0 0 24 24" width="28" height="28"><polyline points="15 18 9 12 15 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; margin-top: -50px;">
+            <img id="callAvatar" src="" style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; margin-bottom: 20px; border: 2px solid #333;">
+            <div id="callName" style="color: #fff; font-size: 24px; font-weight: bold; margin-bottom: 10px;"></div>
+            <div id="callTimerDisplay" style="color: #a1a1aa; font-size: 16px; font-weight: 500;">00:00:00</div>
+        </div>
+        <div style="margin-bottom: 40px; display: flex; gap: 40px;">
+            <button id="hangupBtn" style="width: 72px; height: 72px; border-radius: 50%; background: #ff3b30; border: none; display: flex; justify-content: center; align-items: center; cursor: pointer;">
+                <svg viewBox="0 0 24 24" width="36" height="36" style="overflow: visible;">
+                    <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" fill="#fff"/>
+                    <line x1="-3" y1="-3" x2="27" y2="27" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- === 用户表情包大页面 View === -->
+    <div id="userStickerView" class="view settings-view">
+        <div class="settings-header">
+            <div class="header-top-row">
+                <button class="back-btn" id="closeUserStickerBtn"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>返回</button>
+            </div>
+            <div class="settings-title" style="margin-bottom: 10px;">选择表情包</div>
+        </div>
+        <div class="settings-content">
+            <div class="zika-input-area">
+                <input type="file" id="userStickerFileInputInner" class="hidden-file-input" accept="image/*" multiple>
+                <button class="zika-btn zika-btn-primary" id="addUserStickerBtn" style="width: 100%; padding: 10px;">批量添加本地表情包</button>
+            </div>
+            <div class="sticker-grid" id="userStickerGrid"></div>
+        </div>
+    </div>
+
+    <!-- === 用户拍一拍大页面 View === -->
+    <div id="userPokeView" class="view settings-view">
+        <div class="settings-header">
+            <div class="header-top-row">
+                <button class="back-btn" id="closeUserPokeBtn"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>返回</button>
+            </div>
+            <div class="settings-title" style="margin-bottom: 10px;">发送拍一拍</div>
+        </div>
+        <div class="settings-content">
+            <div class="zika-input-area">
+                <textarea id="userPokeTextarea" class="zika-textarea" placeholder="批量添加自定义拍一拍（一行一句，点击下方列表直接发送）" style="min-height: 60px;"></textarea>
+                <div class="zika-actions" style="justify-content: flex-end;">
+                    <button class="zika-btn zika-btn-primary" id="userPokeAddBtn">添加</button>
+                </div>
+            </div>
+            <div class="zika-list" id="userPokeListContainer"></div>
+        </div>
+    </div>
+
+    <!-- === 2. 主设置 View === -->
+    <div id="settingsView" class="view settings-view">
+        <div class="settings-header">
+            <div class="header-top-row">
+                <button class="back-btn" id="closeSettingsBtn"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>返回</button>
+            </div>
+            <div class="settings-title">设置</div>
+        </div>
+        
+        <div class="settings-content">
+            <div class="settings-group">
+                <div class="settings-item profile-card" id="openBaseSettingsBtn">
+                    <div class="avatar-ring profile-ring">
+                        <img id="userProfileAvatar" class="profile-avatar" alt="Profile">
+                    </div>
+                    <div class="profile-info">
+                        <div class="profile-name" id="profileNameDisplay">弯弯</div>
+                        <div class="profile-sub">基础设置 (气泡/字体/颜色)</div>
+                    </div>
+                    <svg class="arrow-right" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
+                <div class="settings-item" id="openHistoryBtn">
+                    <div class="icon-box gray-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" style="transform: scale(0.8); transform-origin: center;"/></svg></div>
+                    <div class="item-label">聊天记录</div>
+                    <svg class="arrow-right" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
+                <div class="settings-item">
+                    <div class="icon-box gray-icon"><svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg></div>
+                    <div class="item-label">夜间模式</div>
+                    <div class="toggle-switch" id="darkModeToggle"></div>
+                </div>
+                <div class="settings-item">
+                    <div class="icon-box gray-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                    <div class="item-label">后台保活与通知</div>
+                    <div class="toggle-switch" id="bgToggleSwitch"></div>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <div class="settings-item" id="openZikaBtn">
+                    <div class="icon-box gray-icon"><svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="12" rx="2" ry="2" fill="none"/><path d="M4 6h16M7 4h10" fill="none"/></svg></div>
+                    <div class="item-label">字卡</div>
+                    <svg class="arrow-right" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
+                <div class="settings-item" id="openStickerBtn">
+                    <div class="icon-box gray-icon"><svg viewBox="0 0 24 24"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm-3-11a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm6 0a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm-3 5.5c2.3 0 4.3-1.4 5-3.5H7c.7 2.1 2.7 3.5 5 3.5z" fill="#fff" stroke="none"/></svg></div>
+                    <div class="item-label">梦角表情包</div>
+                    <svg class="arrow-right" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
+                <div class="settings-item" id="openPokeBtn">
+                    <div class="icon-box gray-icon"><svg viewBox="0 0 24 24"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                    <div class="item-label">梦角拍一拍</div>
+                    <svg class="arrow-right" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
+                <div class="settings-item" id="openTransferBtn">
+                    <div class="icon-box gray-icon"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2" ry="2" fill="none" stroke="#fff" stroke-width="2"/><line x1="2" y1="10" x2="22" y2="10" stroke="#fff" stroke-width="2"/></svg></div>
+                    <div class="item-label">转账</div>
+                    <svg class="arrow-right" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
+                <div class="settings-item" id="openReplyBtn">
+                    <div class="icon-box gray-icon"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                    <div class="item-label">回复</div>
+                    <svg class="arrow-right" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
+                <div class="settings-item" id="openStatusBtn">
+                    <div class="icon-box gray-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="#fff" stroke-width="2"/><path d="M12 6v6l4 2" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div>
+                    <div class="item-label">状态</div>
+                    <svg class="arrow-right" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- === 聊天记录 View === -->
+    <div id="historyView" class="view settings-view">
+        <div class="settings-header">
+            <div class="header-top-row">
+                <button class="back-btn" id="closeHistoryBtn"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>返回</button>
+                <button class="text-btn" id="historySelectAllBtn">全选</button>
+            </div>
+            <div class="settings-title" style="margin-bottom: 10px;">聊天记录</div>
+        </div>
+        <div class="settings-content" style="padding-bottom: 80px;">
+            <div class="zika-list" id="historyListContainer" style="margin: 0;"></div>
+        </div>
+        <div class="batch-bar active" style="z-index: 20; transform: translateY(0); position: fixed; bottom: 0; box-shadow: 0 -2px 10px rgba(0,0,0,0.05);">
+            <button class="batch-bar-btn batch-btn-gray" id="historySaveBtn">保存</button>
+            <button class="batch-bar-btn batch-btn-red" id="historyDeleteBtn">删除</button>
+        </div>
+    </div>
+    
+    <!-- 聊天记录保存选项弹窗 -->
+    <div class="sheet-overlay" id="historySaveOverlay"></div>
+    <div class="sheet-modal" id="historySaveSheet" style="padding: 0; background: var(--settings-bg);">
+        <div class="action-sheet-item" id="actionNormalSave" style="color: #007aff; background: var(--item-bg);">正常保存</div>
+        <div class="action-sheet-item" id="actionExportSave" style="color: var(--text-main); background: var(--item-bg); margin-bottom: 8px;">导出保存 (TXT)</div>
+        <div class="action-sheet-item" id="actionCancelSave" style="color: var(--text-main); background: var(--item-bg); font-weight: bold;">取消</div>
+    </div>
+
+    <!-- === 3. 基础设置 View === -->
+    <div id="baseSettingsView" class="view settings-view">
+        <div class="settings-header">
+            <div class="header-top-row">
+                <button class="back-btn" id="closeBaseSettingsBtn"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>返回</button>
+            </div>
+            <div class="settings-title">基础设置</div>
+        </div>
+        <div class="settings-content">
+            <div class="settings-group">
+                <input type="file" id="userAvatarInput" class="hidden-file-input" accept="image/*">
+                <div class="settings-item" id="changeUserAvatarBtn">
+                    <div class="item-label">用户头像</div>
+                    <img id="baseSettingAvatar" class="settings-avatar-preview" alt="Preview">
+                    <svg class="arrow-right" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
+                <div class="settings-item">
+                    <div class="item-label">用户昵称</div>
+                    <input type="text" id="nicknameInput" class="value-input" style="width:150px; text-align:right; border:none; background:transparent;" autocomplete="off">
+                    <svg class="arrow-right" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
+            </div>
+            <div class="settings-group">
+                <div class="settings-item">
+                    <div class="item-label">用户气泡颜色</div>
+                    <input type="color" id="userBubbleColorPicker" class="color-picker">
+                    <svg class="arrow-right" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
+                <div class="settings-item">
+                    <div class="item-label">梦角气泡颜色</div>
+                    <input type="color" id="dreamBubbleColorPicker" class="color-picker">
+                    <svg class="arrow-right" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
+                <div class="settings-item">
+                    <div class="item-label">用户字体颜色</div>
+                    <input type="color" id="userFontColorPicker" class="color-picker">
+                    <svg class="arrow-right" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
+                <div class="settings-item">
+                    <div class="item-label">梦角字体颜色</div>
+                    <input type="color" id="dreamFontColorPicker" class="color-picker">
+                    <svg class="arrow-right" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
+                <div class="settings-item">
+                    <div class="item-label">全局配置图标颜色</div>
+                    <input type="color" id="globalIconColorPicker" class="color-picker">
+                    <svg class="arrow-right" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- === 回复 View === -->
+    <div id="replySettingsView" class="view settings-view">
+        <div class="settings-header">
+            <div class="header-top-row">
+                <button class="back-btn" id="closeReplySettingsBtn"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>返回</button>
+            </div>
+            <div class="settings-title">回复</div>
+        </div>
+        <div class="settings-content">
+            <div class="settings-group" style="padding: 10px 0;">
+                <div class="settings-item" style="cursor: default; background: var(--item-bg);">
+                    <div class="item-label">回复条数 (条)</div>
+                    <div style="display: flex; align-items: center; gap: 8px; margin-right: 8px;">
+                        <input type="number" id="replyCountMin" class="value-input" min="1" max="10">
+                        <span style="color: #c7c7cc;">~</span>
+                        <input type="number" id="replyCountMax" class="value-input" min="1" max="10">
+                    </div>
+                </div>
+                <div class="settings-item" style="cursor: default; background: var(--item-bg);">
+                    <div class="item-label">回复速度 (秒)</div>
+                    <div style="display: flex; align-items: center; gap: 8px; margin-right: 8px;">
+                        <input type="number" id="replySpeedMin" class="value-input" min="0.1" max="10" step="0.1">
+                        <span style="color: #c7c7cc;">~</span>
+                        <input type="number" id="replySpeedMax" class="value-input" min="0.1" max="10" step="0.1">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="settings-group" style="padding: 10px 0;">
+                <div class="settings-item" style="cursor: default; background: var(--item-bg);">
+                    <div class="item-label">语音回复概率 (%)</div>
+                    <input type="number" id="voiceProbInput" class="value-input" min="0" max="100" style="width: 60px;">
+                </div>
+                <div class="settings-item" style="cursor: default; background: var(--item-bg);">
+                    <div class="item-label">拼字卡概率 (%)</div>
+                    <input type="number" id="concatProbInput" class="value-input" min="0" max="100" style="width: 60px;">
+                </div>
+                <div class="settings-item" style="cursor: default; background: var(--item-bg);">
+                    <div class="item-label">拼字卡数量 (条)</div>
+                    <div style="display: flex; align-items: center; gap: 8px; margin-right: 8px;">
+                        <input type="number" id="concatMin" class="value-input" min="1" max="10">
+                        <span style="color: #c7c7cc;">~</span>
+                        <input type="number" id="concatMax" class="value-input" min="1" max="10">
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-group" style="padding: 10px 0;">
+                <div class="settings-item" style="cursor: default; background: var(--item-bg);">
+                    <div class="item-label">主动发送</div>
+                    <div class="toggle-switch" id="autoSendToggle"></div>
+                </div>
+                <div class="settings-item" style="cursor: default; background: var(--item-bg);">
+                    <div class="item-label">主动发送间隔 (分钟)</div>
+                    <input type="number" id="autoSendIntervalInput" class="value-input" min="1" style="width: 60px;">
+                </div>
+            </div>
+
+            <div class="settings-group" style="padding: 10px 0;">
+                <div class="settings-item" style="cursor: default; background: var(--item-bg);">
+                    <div class="item-label">已读不回</div>
+                    <div class="toggle-switch" id="readNotReplyToggle"></div>
+                </div>
+                <div class="settings-item" style="cursor: default; background: var(--item-bg);">
+                    <div class="item-label">已读不回概率 (%)</div>
+                    <input type="number" id="readNotReplyProbInput" class="value-input" min="0" max="100" style="width: 60px;">
+                </div>
+            </div>
+            
+            <div style="padding: 0 16px 20px 16px; font-size: 13px; color: var(--text-sub); line-height: 1.5;">
+                * 梦角将在设定的区间内<b>打包发送全部消息</b>。<br>
+                * 若触发语音，则字卡将以可点击展开的带进度条的语音气泡发送。<br>
+                * 若触发“已读不回”，梦角将打断回复，仅留下已读状态。
+            </div>
+        </div>
+    </div>
+
+    <!-- === 梦角表情包 View === -->
+    <div id="stickerView" class="view settings-view">
+        <div class="settings-header">
+            <div class="header-top-row">
+                <button class="back-btn" id="closeStickerBtn"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>返回</button>
+                <button class="text-btn" id="toggleStickerBatchBtn">选择</button>
+            </div>
+            <div class="settings-title" style="margin-bottom: 10px;">梦角表情包</div>
+        </div>
+        <div class="settings-content">
+            <div class="zika-input-area">
+                <input type="file" id="stickerFileInput" class="hidden-file-input" accept="image/*" multiple>
+                <button class="zika-btn zika-btn-primary" id="stickerUploadBtn" style="width: 100%; padding: 10px;">批量上传本地图片</button>
+            </div>
+            <div class="sticker-grid" id="stickerListContainer"></div>
+        </div>
+        <div class="batch-bar" id="stickerBatchBar">
+            <button class="batch-bar-btn batch-btn-red" id="stickerBatchDeleteBtn">批量删除</button>
+        </div>
+    </div>
+
+    <!-- === 转账 View === -->
+    <div id="transferView" class="view settings-view">
+        <div class="settings-header">
+            <div class="header-top-row">
+                <button class="back-btn" id="closeTransferBtn"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>返回</button>
+            </div>
+            <div class="settings-title" style="margin-bottom: 10px;">转账金额</div>
+        </div>
+        <div class="settings-content">
+            <div class="zika-input-area">
+                <textarea id="transferTextarea" class="zika-textarea" placeholder="批量添加转账金额数字（一行一个，如：520）" style="min-height: 60px;"></textarea>
+                <div class="zika-actions" style="justify-content: flex-end;">
+                    <button class="zika-btn zika-btn-primary" id="transferAddBtn">添加</button>
+                </div>
+            </div>
+            <div class="zika-list" id="transferListContainer"></div>
+        </div>
+    </div>
+
+    <!-- === 梦角拍一拍 View === -->
+    <div id="pokeView" class="view settings-view">
+        <div class="settings-header">
+            <div class="header-top-row">
+                <button class="back-btn" id="closePokeBtn"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>返回</button>
+            </div>
+            <div class="settings-title" style="margin-bottom: 10px;">梦角拍一拍</div>
+        </div>
+        <div class="settings-content">
+            <div class="zika-input-area">
+                <textarea id="pokeTextarea" class="zika-textarea" placeholder="批量添加完整拍一拍内容（一行一句）" style="min-height: 60px;"></textarea>
+                <div class="zika-actions" style="justify-content: flex-end;">
+                    <button class="zika-btn zika-btn-primary" id="pokeAddBtn">添加</button>
+                </div>
+            </div>
+            <div class="zika-list" id="pokeListContainer"></div>
+        </div>
+    </div>
+
+    <!-- === 状态 View === -->
+    <div id="statusView" class="view settings-view">
+        <div class="settings-header">
+            <div class="header-top-row">
+                <button class="back-btn" id="closeStatusBtn"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>返回</button>
+            </div>
+            <div class="settings-title" style="margin-bottom: 10px;">状态</div>
+        </div>
+        <div class="settings-content">
+            <div class="settings-group" style="padding: 10px 0; margin-bottom: 10px;">
+                <div class="settings-item" style="cursor: default; background: var(--item-bg);">
+                    <div class="item-label">切换频率 (分钟)</div>
+                    <div style="display: flex; align-items: center; gap: 8px; margin-right: 8px;">
+                        <input type="number" id="statusSpeedInput" class="value-input" min="1" style="width: 60px;">
+                    </div>
+                </div>
+            </div>
+            <div style="padding: 0 16px 15px 16px; font-size: 13px; color: var(--text-sub); line-height: 1.5;">
+                * 每隔设定的时间，将有 50% 概率从以下状态库中完全随机抽取一个新状态进行切换显示。
+            </div>
+            <div class="zika-input-area">
+                <textarea id="statusTextarea" class="zika-textarea" placeholder="批量添加状态（一行一句，如：在线）" style="min-height: 60px;"></textarea>
+                <div class="zika-actions" style="justify-content: flex-end;">
+                    <button class="zika-btn zika-btn-primary" id="statusAddBtn">添加</button>
+                </div>
+            </div>
+            <div class="zika-list" id="statusListContainer"></div>
+        </div>
+    </div>
+
+    <!-- === 4. 字卡 View === -->
+    <div id="zikaView" class="view settings-view">
+        <div class="settings-header">
+            <div class="header-top-row">
+                <button class="back-btn" id="closeZikaBtn"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>返回</button>
+                <button class="text-btn" id="toggleBatchBtn">选择</button>
+            </div>
+            <div class="settings-title" style="margin-bottom: 10px;">字卡</div>
+        </div>
+        <div class="search-container">
+            <div class="search-bar">
+                <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="zikaSearchInput" class="search-input" placeholder="搜索字卡" autocomplete="off">
+            </div>
+        </div>
+        <div class="settings-content">
+            <div class="zika-input-area">
+                <textarea id="zikaTextarea" class="zika-textarea" placeholder="批量添加字卡（一行一句）"></textarea>
+                <div class="zika-actions">
+                    <input type="file" id="zikaFileInput" class="hidden-file-input" accept=".txt,.json">
+                    <div style="display: flex; gap: 8px;">
+                        <button class="zika-btn zika-btn-secondary" id="zikaUploadBtn">文件上传</button>
+                        <button class="zika-btn zika-btn-link" id="zikaSelectCatBtn">分类: 未分类</button>
+                    </div>
+                    <button class="zika-btn zika-btn-primary" id="zikaAddBtn">添加</button>
+                </div>
+            </div>
+            <div class="zika-category-tabs" id="zikaCategoryTabs"></div>
+            <div class="zika-list" id="zikaListContainer"></div>
+        </div>
+        <div class="batch-bar" id="batchBar">
+            <button class="batch-bar-btn batch-btn-gray" id="batchCategoryBtn">修改分类</button>
+            <button class="batch-bar-btn batch-btn-red" id="batchDeleteBtn">批量删除</button>
+        </div>
+    </div>
+
+    <!-- === 分类选择器弹窗 === -->
+    <div class="sheet-overlay" id="categorySheetOverlay"></div>
+    <div class="sheet-modal" id="categorySheet">
+        <div class="sheet-title">分类管理</div>
+        <div class="sheet-add-box">
+            <input type="text" id="newCategoryInput" placeholder="新建分类名称" autocomplete="off">
+            <button id="addCategoryBtn">新建</button>
+        </div>
+        <div class="sheet-cat-list" id="categoryListContainer"></div>
+    </div>
+    
+    <!-- === 用户手动发送转账 弹窗 === -->
+    <div class="sheet-overlay" id="userTransferOverlay"></div>
+    <div class="sheet-modal" id="userTransferSheet">
+        <div class="sheet-title" style="margin-bottom:15px;">发起转账</div>
+        <div class="sheet-add-box">
+            <input type="number" id="userTransferAmount" placeholder="金额 (¥)">
+        </div>
+        <div class="sheet-add-box">
+            <input type="text" id="userTransferMemo" placeholder="备注 (选填)">
+        </div>
+        <div class="sheet-add-box" style="display: flex; gap: 10px; margin-top:20px;">
+            <button id="cancelUserTransferBtn" style="background: var(--input-bg); color: var(--text-main); flex-grow: 1; padding: 12px 0; font-size: 16px; border-radius: 10px; border: none; cursor: pointer;">取消</button>
+            <button id="sendUserTransferBtn" style="background: var(--text-main); color: var(--bg-color); flex-grow: 1; padding: 12px 0; font-size: 16px; border-radius: 10px; border: none; cursor: pointer;">发送</button>
+        </div>
+    </div>
+    
+    <!-- === 转账交互弹窗 (接收/退回) === -->
+    <div class="sheet-overlay" id="transferActionOverlay"></div>
+    <div class="sheet-modal" id="transferActionSheet" style="padding: 0; background: var(--settings-bg);">
+        <div class="action-sheet-item" id="actionReceive" style="color: #007aff; background: var(--item-bg);">接收</div>
+        <div class="action-sheet-item" id="actionReturn" style="color: #ff3b30; background: var(--item-bg); margin-bottom: 8px;">退回</div>
+        <div class="action-sheet-item" id="actionCancel" style="color: var(--text-main); background: var(--item-bg); font-weight: bold;">取消</div>
+    </div>
+
+</div>
+
+<audio id="silentAudio" loop>
+    <source src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA" type="audio/wav">
+</audio>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        
+        const fileDefaultZikas = [
+            "宝宝", "宝宝宝宝宝宝", "老婆", "老婆老婆老婆", "姐姐", "妹妹", "我是一个坏宝宝", "嗯，我是坏哥哥", "你是坏宝宝", "你是小猫", "你是乖宝宝", "我喜欢你", "我爱你", "我也爱你", "我最爱你了", "你最爱我对不对", "只爱我一个对不对", "我好爱你老婆", "好爱你好爱你好爱你", "好喜欢你好喜欢你好喜欢你", "想和你一直呆在一起宝宝", "我会一直抱着你的", "好喜欢老婆🥺", "说胡话吗？我怎么会走", "我不会离开你的", "我爱你老婆", "我超级爱你老婆", "很想宝宝", "很想老婆", "很想小澪", "很想芝芝", "想要更多来自你的爱", "只喜欢你", "我最喜欢你了", "永远喜欢你", "越来越喜欢你", "喜欢你喜欢得不得了", "喜欢到不行", "永远在一起", "早上好", "中午好", "下午好", "晚上好", "晚安", "我在", "你", "我", "她", "他", "腰", "腿", "手", "脸", "脖子", "嘴巴", "胸", "屁股", "打你屁股", "没有上下其手。", "要", "不要", "喜欢", "不喜欢", "讨厌", "不可以吗^^", "可以", "不可以", "好", "好吧", "不好", "好不好", "还好", "不知道", "都可以", "有", "没有", "没有吧？", "对", "不对", "是", "不是", "好用", "不好用。", "会", "不会", "不会的", "我在磨合中", "不是吗", "可以吗", "我会的", "嗯", "哦", "哦～"
+        ];
+        const defaultBlackImg = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+        
+        // 全局状态管理 (v28: 历史记录管理引擎与异常捕捉)
+        const state = {
+            isDarkMode: localStorage.getItem('darkMode_v28') === 'true',
+            bgNotifyEnabled: localStorage.getItem('bgNotifyEnabled_v28') === 'true',
+            
+            dreamAvatar: localStorage.getItem('dreamAvatar_v28') || defaultBlackImg,
+            userAvatar: localStorage.getItem('userAvatar_v28') || defaultBlackImg,
+            userName: localStorage.getItem('userName_v28') || '弯弯',
+            dreamName: localStorage.getItem('dreamName_v28') || '@2ofHearts',
+            
+            userBubbleColor: localStorage.getItem('userBubbleColor_v28') || '#828282',
+            dreamBubbleColor: localStorage.getItem('dreamBubbleColor_v28') || '#f2f2f7',
+            userFontColor: localStorage.getItem('userFontColor_v28') || '#ffffff',
+            dreamFontColor: localStorage.getItem('dreamFontColor_v28') || '#1c1c1e',
+            globalIconColor: localStorage.getItem('globalIconColor_v28') || '#8e8e93',
+            
+            categories: JSON.parse(localStorage.getItem('categories_v28')) || ['未分类'],
+            zikas: JSON.parse(localStorage.getItem('zikas_v28')),
+            stickers: JSON.parse(localStorage.getItem('stickers_v28')) || [], 
+            userStickers: JSON.parse(localStorage.getItem('userStickers_v28')) || [], 
+            pokes: JSON.parse(localStorage.getItem('pokes_v28')) || [],
+            userPokes: JSON.parse(localStorage.getItem('userPokes_v28')) || [],
+            statuses: JSON.parse(localStorage.getItem('statuses_v28')) || [{id:'1', text:'在线'}],
+            transfers: JSON.parse(localStorage.getItem('transfers_v28')) || [{id:'1', text:'520'}],
+            
+            chatHistory: JSON.parse(localStorage.getItem('chatHistory_v28')) || [],
+
+            replyCountMin: parseInt(localStorage.getItem('replyCountMin_v28')) || 1,
+            replyCountMax: parseInt(localStorage.getItem('replyCountMax_v28')) || 1,
+            replySpeedMin: parseFloat(localStorage.getItem('replySpeedMin_v28')) || 1.0,
+            replySpeedMax: parseFloat(localStorage.getItem('replySpeedMax_v28')) || 1.0,
+            
+            concatProb: parseInt(localStorage.getItem('concatProb_v28')) || 17,
+            concatMin: parseInt(localStorage.getItem('concatMin_v28')) || 2,
+            concatMax: parseInt(localStorage.getItem('concatMax_v28')) || 3,
+            
+            voiceProb: parseInt(localStorage.getItem('voiceProb_v28')) || 13,
+            
+            autoSendEnabled: localStorage.getItem('autoSendEnabled_v28') === 'true',
+            autoSendInterval: parseInt(localStorage.getItem('autoSendInterval_v28')) || 5,
+
+            readNotReplyEnabled: localStorage.getItem('readNotReplyEnabled_v28') === 'true',
+            readNotReplyProb: parseInt(localStorage.getItem('readNotReplyProb_v28')) || 10,
+
+            statusSpeed: parseInt(localStorage.getItem('statusSpeed_v28')) || 5,
+
+            activeFilter: '全部字卡', currentCategory: '未分类', 
+            sheetMode: 'select', 
+            isBatchMode: false, selectedZikas: new Set(),
+            isStickerBatchMode: false, selectedStickers: new Set(),
+            isHistoryBatchMode: true, selectedHistory: new Set()
+        };
+
+        if (!state.zikas) {
+            state.zikas = fileDefaultZikas.map((text, i) => ({ id: 'def_' + i, text, category: '未分类' }));
+            localStorage.setItem('zikas_v28', JSON.stringify(state.zikas));
+        }
+
+        const els = {
+            rcMin: document.getElementById('replyCountMin'), rcMax: document.getElementById('replyCountMax'),
+            rsMin: document.getElementById('replySpeedMin'), rsMax: document.getElementById('replySpeedMax'),
+            ccProb: document.getElementById('concatProbInput'), ccMin: document.getElementById('concatMin'), ccMax: document.getElementById('concatMax'),
+            voiceProb: document.getElementById('voiceProbInput'),
+            autoSendToggle: document.getElementById('autoSendToggle'), autoSendIntervalInput: document.getElementById('autoSendIntervalInput'),
+            rnrToggle: document.getElementById('readNotReplyToggle'), rnrProbInput: document.getElementById('readNotReplyProbInput'),
+            stSpeed: document.getElementById('statusSpeedInput'),
+            statusIndicator: document.getElementById('statusIndicator'),
+            typingIndicator: document.getElementById('typingIndicator'),
+            characterName: document.getElementById('characterName'),
+            uBubblePicker: document.getElementById('userBubbleColorPicker'), dBubblePicker: document.getElementById('dreamBubbleColorPicker'),
+            uFontPicker: document.getElementById('userFontColorPicker'), dFontPicker: document.getElementById('dreamFontColorPicker'),
+            gIconPicker: document.getElementById('globalIconColorPicker'),
+            bgToggleSwitch: document.getElementById('bgToggleSwitch'), darkModeToggle: document.getElementById('darkModeToggle'),
+            silentAudio: document.getElementById('silentAudio'), actionPanel: document.getElementById('actionPanel')
+        };
+
+        const saveChatHistory = () => { localStorage.setItem('chatHistory_v28', JSON.stringify(state.chatHistory)); };
+
+        const applyDarkMode = () => {
+            if (state.isDarkMode) { document.body.classList.add('dark-mode'); els.darkModeToggle.classList.add('on'); } 
+            else { document.body.classList.remove('dark-mode'); els.darkModeToggle.classList.remove('on'); }
+        };
+
+        els.darkModeToggle.addEventListener('click', () => {
+            state.isDarkMode = !state.isDarkMode;
+            localStorage.setItem('darkMode_v28', state.isDarkMode);
+            applyDarkMode();
+        });
+
+        const applyBaseState = () => {
+            applyDarkMode();
+            
+            document.getElementById('dreamAvatar').src = state.dreamAvatar;
+            document.getElementById('userFooterAvatar').src = state.userAvatar;
+            document.getElementById('userProfileAvatar').src = state.userAvatar;
+            document.getElementById('baseSettingAvatar').src = state.userAvatar;
+            document.getElementById('profileNameDisplay').textContent = state.userName;
+            document.getElementById('nicknameInput').value = state.userName;
+            els.characterName.textContent = state.dreamName;
+            
+            els.uBubblePicker.value = state.userBubbleColor; document.documentElement.style.setProperty('--user-bubble-bg', state.userBubbleColor);
+            els.dBubblePicker.value = state.dreamBubbleColor; document.documentElement.style.setProperty('--dream-bubble-bg', state.dreamBubbleColor);
+            els.uFontPicker.value = state.userFontColor; document.documentElement.style.setProperty('--user-font-color', state.userFontColor);
+            els.dFontPicker.value = state.dreamFontColor; document.documentElement.style.setProperty('--dream-font-color', state.dreamFontColor);
+            els.gIconPicker.value = state.globalIconColor; document.documentElement.style.setProperty('--global-icon-color', state.globalIconColor);
+            
+            els.rcMin.value = state.replyCountMin; els.rcMax.value = state.replyCountMax;
+            els.rsMin.value = state.replySpeedMin; els.rsMax.value = state.replySpeedMax;
+            
+            els.ccProb.value = state.concatProb; els.ccMin.value = state.concatMin; els.ccMax.value = state.concatMax;
+            if(els.voiceProb) els.voiceProb.value = state.voiceProb;
+            
+            if (state.autoSendEnabled) els.autoSendToggle.classList.add('on');
+            els.autoSendIntervalInput.value = state.autoSendInterval;
+
+            if (state.readNotReplyEnabled) els.rnrToggle.classList.add('on');
+            els.rnrProbInput.value = state.readNotReplyProb;
+
+            els.stSpeed.value = state.statusSpeed;
+            
+            if (state.bgNotifyEnabled) { els.bgToggleSwitch.classList.add('on'); els.silentAudio.play().catch(e => {}); }
+        };
+        applyBaseState();
+
+        const getCurrentTimeStr = () => {
+            const now = new Date();
+            let h = now.getHours(), m = now.getMinutes();
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12 || 12; m = m < 10 ? '0' + m : m;
+            return `${h}:${m} ${ampm}`;
+        };
+        
+        const getMetaHtml = (timeStr) => `<span class="msg-meta">${timeStr || getCurrentTimeStr()} <svg viewBox="0 0 16 16"><path d="M1 9l3 3 7-7M5 12l3 3 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></span>`;
+        const getMetaStickerHtml = (timeStr) => `<span class="msg-meta-sticker">${timeStr || getCurrentTimeStr()} <svg viewBox="0 0 16 16"><path d="M1 9l3 3 7-7M5 12l3 3 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></span>`;
+        
+        const escapeHTML = (str) => str ? str.replace(/[&<>'"]/g, tag => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'}[tag])) : '';
+        const formatQuoteHTML = (name, text) => {
+            const cleanName = name.startsWith('@') ? name.substring(1) : name;
+            return `<span class="quote-name">@${escapeHTML(cleanName)}</span>: ${escapeHTML(text)}`;
+        };
+
+        const compressImage = (dataUrl, callback) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_SIZE = 300; 
+                let width = img.width, height = img.height;
+                if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } } 
+                else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
+                canvas.width = width; canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                callback(canvas.toDataURL('image/webp', 0.6));
+            };
+            img.src = dataUrl;
+        };
+
+        const requestNotification = () => { if ("Notification" in window) Notification.requestPermission(); };
+        const triggerNotification = (bodyText) => {
+            if (state.bgNotifyEnabled && "Notification" in window && Notification.permission === "granted") {
+                if (document.hidden) new Notification(state.dreamName, { body: bodyText, icon: state.dreamAvatar });
+            }
+        };
+        els.bgToggleSwitch.addEventListener('click', () => {
+            state.bgNotifyEnabled = !state.bgNotifyEnabled;
+            localStorage.setItem('bgNotifyEnabled_v28', state.bgNotifyEnabled);
+            els.bgToggleSwitch.classList.toggle('on');
+            if (state.bgNotifyEnabled) { requestNotification(); els.silentAudio.play().catch(e => console.log(e)); } 
+            else { els.silentAudio.pause(); }
+        });
+        document.addEventListener('visibilitychange', () => { if (!document.hidden && state.bgNotifyEnabled) els.silentAudio.play().catch(e=>{}); });
+
+        let statusInterval = null;
+        const triggerRandomStatus = () => {
+            if (state.statuses && state.statuses.length > 0) {
+                const rand = Math.floor(Math.random() * state.statuses.length);
+                els.statusIndicator.textContent = state.statuses[rand].text;
+            } else { els.statusIndicator.textContent = ""; }
+        };
+        triggerRandomStatus();
+
+        const startStatusTimer = () => {
+            if (statusInterval) clearInterval(statusInterval);
+            statusInterval = setInterval(() => {
+                if (Math.random() < 0.5) triggerRandomStatus();
+            }, state.statusSpeed * 60 * 1000);
+        };
+        startStatusTimer();
+
+        els.stSpeed.addEventListener('change', (e) => {
+            let val = parseInt(e.target.value); if (isNaN(val) || val < 1) val = 1;
+            state.statusSpeed = val; localStorage.setItem('statusSpeed_v28', val);
+            e.target.value = val; startStatusTimer();
+        });
+
+
+        // --- 5分钟系统提示时间轴管理 ---
+        let lastMsgTime = 0;
+        let lastUserMessageText = "";
+        const chatContainer = document.getElementById('chatContainer');
+        
+        const checkAndInsertTimeSeparator = () => {
+            const now = Date.now();
+            if (lastMsgTime === 0 || (now - lastMsgTime >= 5 * 60 * 1000)) {
+                const d = new Date(now);
+                const M = d.getMonth() + 1, D = d.getDate();
+                const h = d.getHours().toString().padStart(2, '0');
+                const m = d.getMinutes().toString().padStart(2, '0');
+                const timeText = `Past information<br>${M}月${D}日 ${h}:${m}`;
+                
+                const sysMsg = { id: 'sys_'+Date.now(), sender: 'system', type: 'sys', content: timeText, isDanger: false, timestamp: now };
+                state.chatHistory.push(sysMsg);
+                saveChatHistory();
+                appendSingleMessage(sysMsg);
+            }
+            lastMsgTime = now;
+            return now;
+        };
+
+        // --- 通话悬浮小窗拖拽系统 ---
+        const callFloat = document.getElementById('callFloat');
+        let isDraggingFloat = false;
+        let dragStartX, dragStartY, initialLeft, initialTop;
+
+        const onDragStart = (e) => {
+            isDraggingFloat = false;
+            if (e.type === 'touchstart') { dragStartX = e.touches[0].clientX; dragStartY = e.touches[0].clientY; } 
+            else { dragStartX = e.clientX; dragStartY = e.clientY; }
+            initialLeft = callFloat.offsetLeft;
+            initialTop = callFloat.offsetTop;
+        };
+
+        const onDragMove = (e) => {
+            if (dragStartX === undefined) return;
+            let clientX, clientY;
+            if (e.type === 'touchmove') { clientX = e.touches[0].clientX; clientY = e.touches[0].clientY; } 
+            else { clientX = e.clientX; clientY = e.clientY; }
+            const dx = clientX - dragStartX;
+            const dy = clientY - dragStartY;
+            if (Math.abs(dx) > 5 || Math.abs(dy) > 5) isDraggingFloat = true;
+            if (isDraggingFloat) {
+                e.preventDefault();
+                let newLeft = initialLeft + dx;
+                let newTop = initialTop + dy;
+                newLeft = Math.max(0, Math.min(window.innerWidth - callFloat.offsetWidth, newLeft));
+                newTop = Math.max(0, Math.min(window.innerHeight - callFloat.offsetHeight, newTop));
+                callFloat.style.left = newLeft + 'px';
+                callFloat.style.top = newTop + 'px';
+                callFloat.style.transform = 'none';
+                callFloat.style.right = 'auto'; 
+            }
+        };
+
+        const onDragEnd = (e) => { dragStartX = undefined; };
+
+        callFloat.addEventListener('mousedown', onDragStart); document.addEventListener('mousemove', onDragMove, {passive: false}); document.addEventListener('mouseup', onDragEnd);
+        callFloat.addEventListener('touchstart', onDragStart, {passive: false}); document.addEventListener('touchmove', onDragMove, {passive: false}); document.addEventListener('touchend', onDragEnd);
+
+        let callInterval = null; let callSeconds = 0; let isCalling = false;
+
+        const formatCallTime = (sec) => {
+            const h = String(Math.floor(sec / 3600)).padStart(2, '0');
+            const m = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+            const s = String(sec % 60).padStart(2, '0');
+            return `${h}:${m}:${s}`;
+        };
+
+        const updateCallTimers = () => {
+            const t = formatCallTime(callSeconds);
+            document.getElementById('callTimerDisplay').textContent = t;
+            document.getElementById('callFloatTimer').textContent = t;
+        };
+
+        const startCall = () => {
+            if (Math.random() < 0.5) {
+                checkAndInsertTimeSeparator();
+                const content = `对方拒绝了你的通话 <svg viewBox="0 0 24 24" width="14" height="14" style="vertical-align: middle; transform: translateY(-1px); overflow: visible;"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" fill="currentColor"/><line x1="-3" y1="-3" x2="27" y2="27" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>`;
+                const sysMsg = { id: 'sys_'+Date.now(), sender: 'system', type: 'sys', content, isDanger: true, timestamp: Date.now() };
+                state.chatHistory.push(sysMsg); saveChatHistory(); appendSingleMessage(sysMsg);
+            } else {
+                checkAndInsertTimeSeparator();
+                const sysMsg = { id: 'sys_'+Date.now(), sender: 'system', type: 'sys', content: '对方已接听', isDanger: false, timestamp: Date.now() };
+                state.chatHistory.push(sysMsg); saveChatHistory(); appendSingleMessage(sysMsg);
+
+                isCalling = true; callSeconds = 0; updateCallTimers();
+                document.getElementById('callAvatar').src = state.dreamAvatar;
+                document.getElementById('callName').textContent = state.dreamName;
+                document.getElementById('callView').classList.add('active');
+                document.getElementById('callFloat').classList.remove('active');
+                callInterval = setInterval(() => { callSeconds++; updateCallTimers(); }, 1000);
+            }
+        };
+
+        const endCall = () => {
+            if (!isCalling) return;
+            isCalling = false; clearInterval(callInterval);
+            document.getElementById('callView').classList.remove('active');
+            document.getElementById('callFloat').classList.remove('active');
+            checkAndInsertTimeSeparator();
+            const sysMsg = { id: 'sys_'+Date.now(), sender: 'system', type: 'sys', content: `通话时间 ${formatCallTime(callSeconds)}`, isDanger: false, timestamp: Date.now() };
+            state.chatHistory.push(sysMsg); saveChatHistory(); appendSingleMessage(sysMsg);
+        };
+
+        document.getElementById('callBtn').addEventListener('click', () => {
+            if (isCalling) { document.getElementById('callView').classList.add('active'); document.getElementById('callFloat').classList.remove('active'); } 
+            else { startCall(); }
+        });
+        document.getElementById('minimizeCallBtn').addEventListener('click', () => { document.getElementById('callView').classList.remove('active'); document.getElementById('callFloat').classList.add('active'); });
+        document.getElementById('hangupBtn').addEventListener('click', endCall);
+        document.getElementById('callFloat').addEventListener('click', (e) => {
+            if (isDraggingFloat) { e.preventDefault(); e.stopPropagation(); return; }
+            document.getElementById('callView').classList.add('active'); document.getElementById('callFloat').classList.remove('active');
+        });
+
+        // --- 底部交互扩展面板逻辑 ---
+        document.getElementById('footerAvatarBtn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.getElementById('userStickerView').classList.remove('active');
+            els.actionPanel.classList.toggle('active');
+            setTimeout(() => { chatContainer.scrollTop = chatContainer.scrollHeight; }, 100);
+        });
+        chatContainer.addEventListener('click', () => { els.actionPanel.classList.remove('active'); });
+
+        const userStickerView = document.getElementById('userStickerView');
+        const userStickerGrid = document.getElementById('userStickerGrid');
+        
+        document.getElementById('actionStickerBtn').addEventListener('click', () => {
+            els.actionPanel.classList.remove('active'); userStickerView.classList.add('active'); renderUserStickers();
+        });
+
+        document.getElementById('closeUserStickerBtn').addEventListener('click', () => { userStickerView.classList.remove('active'); });
+
+        const userStickerFileInputInner = document.getElementById('userStickerFileInputInner');
+        document.getElementById('addUserStickerBtn').addEventListener('click', () => { userStickerFileInputInner.click(); });
+
+        userStickerFileInputInner.addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length > 0) {
+                let loaded = 0;
+                files.forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        compressImage(event.target.result, (compressedData) => {
+                            state.userStickers.push({ id: Date.now() + Math.random(), url: compressedData });
+                            loaded++;
+                            if (loaded === files.length) { 
+                                try { localStorage.setItem('userStickers_v28', JSON.stringify(state.userStickers)); } 
+                                catch(err) { alert('存储空间不足！由于浏览器缓存限制，无法保存更多表情包，请先删除部分无用表情包。'); state.userStickers.pop(); }
+                                renderUserStickers(); 
+                            }
+                        });
+                    };
+                    reader.readAsDataURL(file);
+                });
+            }
+            userStickerFileInputInner.value = '';
+        });
+
+        const sendUserSticker = (url) => {
+            const sendTs = checkAndInsertTimeSeparator();
+            const msg = { id: 'msg_'+Date.now(), sender: 'user', type: 'sticker', content: url, timeStr: getCurrentTimeStr(), timestamp: sendTs };
+            state.chatHistory.push(msg); saveChatHistory(); appendSingleMessage(msg);
+            
+            userStickerView.classList.remove('active');
+            triggerDreamReply(); 
+        };
+
+        window.deleteUserSticker = (id) => {
+            state.userStickers = state.userStickers.filter(s => s.id !== id);
+            localStorage.setItem('userStickers_v28', JSON.stringify(state.userStickers));
+            renderUserStickers();
+        };
+
+        const renderUserStickers = () => {
+            userStickerGrid.innerHTML = '';
+            state.userStickers.forEach(sticker => {
+                const item = document.createElement('div'); item.className = 'sticker-item';
+                const img = document.createElement('img'); img.src = sticker.url;
+                const clickZone = document.createElement('div'); clickZone.className = 'sticker-click-zone';
+                clickZone.onclick = (e) => { e.preventDefault(); sendUserSticker(sticker.url); };
+                const delBtn = document.createElement('button'); delBtn.type = 'button'; delBtn.className = 'sticker-del';
+                delBtn.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
+                const deleteAction = (e) => { e.preventDefault(); e.stopPropagation(); window.deleteUserSticker(sticker.id); };
+                delBtn.onclick = deleteAction; delBtn.ontouchend = deleteAction;
+                item.appendChild(img); item.appendChild(clickZone); item.appendChild(delBtn);
+                userStickerGrid.appendChild(item);
+            });
+        };
+
+        const photoFileInputInner = document.getElementById('photoFileInputInner');
+        document.getElementById('actionPhotoBtn').addEventListener('click', () => { els.actionPanel.classList.remove('active'); photoFileInputInner.click(); });
+        photoFileInputInner.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => { compressImage(event.target.result, (compressedData) => { sendUserPhoto(compressedData); }); };
+                reader.readAsDataURL(file);
+            }
+            e.target.value = '';
+        });
+
+        const sendUserPhoto = (url) => {
+            const sendTs = checkAndInsertTimeSeparator();
+            const msg = { id: 'msg_'+Date.now(), sender: 'user', type: 'photo', content: url, timeStr: getCurrentTimeStr(), timestamp: sendTs };
+            state.chatHistory.push(msg); saveChatHistory(); appendSingleMessage(msg);
+            triggerDreamReply(); 
+        };
+
+        const uTransferOverlay = document.getElementById('userTransferOverlay');
+        const uTransferSheet = document.getElementById('userTransferSheet');
+        document.getElementById('actionTransferBtn').addEventListener('click', () => {
+            els.actionPanel.classList.remove('active'); uTransferOverlay.classList.add('active'); uTransferSheet.classList.add('active');
+        });
+        const closeUserTransferSheet = () => {
+            uTransferOverlay.classList.remove('active'); uTransferSheet.classList.remove('active');
+            document.getElementById('userTransferAmount').value = ''; document.getElementById('userTransferMemo').value = '';
+        };
+        uTransferOverlay.onclick = closeUserTransferSheet;
+        document.getElementById('cancelUserTransferBtn').onclick = closeUserTransferSheet;
+
+        document.getElementById('sendUserTransferBtn').onclick = () => {
+            const amount = document.getElementById('userTransferAmount').value.trim();
+            const memo = document.getElementById('userTransferMemo').value.trim();
+            if(!amount) return alert('请输入转账金额');
+            closeUserTransferSheet();
+            const sendTs = checkAndInsertTimeSeparator();
+
+            const msg = { id: 'msg_'+Date.now(), sender: 'user', type: 'transfer', content: amount, timeStr: getCurrentTimeStr(), timestamp: sendTs, transferStatus: '待确认', transferMemo: memo };
+            state.chatHistory.push(msg); saveChatHistory(); appendSingleMessage(msg);
+
+            els.typingIndicator.classList.add('active');
+            els.statusIndicator.style.opacity = '0';
+            const sMin = state.replySpeedMin; const sMax = Math.max(sMin, state.replySpeedMax);
+            const delay = (Math.random() * (sMax - sMin) + sMin) * 1000;
+
+            setTimeout(() => {
+                const action = Math.random() < 0.5 ? '已收款' : '已退回';
+                
+                msg.transferStatus = action; saveChatHistory();
+                const el = document.querySelector(`.msg-row[data-id="${msg.id}"] .transfer-bottom`);
+                if(el) { el.textContent = action; el.parentElement.classList.add('received'); }
+
+                const replyMsg = { id: 'msg_'+Date.now(), sender: 'dream', type: 'transfer', content: amount, timeStr: getCurrentTimeStr(), timestamp: Date.now(), transferStatus: action, transferMemo: memo };
+                state.chatHistory.push(replyMsg); saveChatHistory(); appendSingleMessage(replyMsg);
+
+                els.typingIndicator.classList.remove('active'); els.statusIndicator.style.opacity = '1';
+                triggerNotification(action === '已收款' ? '[接收了你的转账]' : '[退回了你的转账]');
+                startAutoSendTimer();
+            }, delay);
+        };
+
+        const userPokeView = document.getElementById('userPokeView');
+        document.getElementById('actionPokeBtn').addEventListener('click', () => { 
+            els.actionPanel.classList.remove('active'); userPokeView.classList.add('active'); renderUserPokes();
+        });
+        document.getElementById('closeUserPokeBtn').addEventListener('click', () => { userPokeView.classList.remove('active'); });
+
+        const renderUserPokes = () => {
+            const list = document.getElementById('userPokeListContainer');
+            list.innerHTML = '';
+            if (state.userPokes.length === 0) { list.innerHTML = '<div class="empty-state">暂无自定义内容</div>'; return; }
+            state.userPokes.forEach(poke => {
+                const item = document.createElement('div'); item.className = 'zika-item';
+                const textDiv = document.createElement('div'); textDiv.className = 'zika-text'; textDiv.textContent = poke.text;
+                textDiv.style.cursor = 'pointer';
+                textDiv.onclick = () => { sendUserPokeText(poke.text); };
+                const delBtn = document.createElement('button'); delBtn.className = 'zika-delete-btn';
+                delBtn.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
+                delBtn.onclick = () => {
+                    state.userPokes = state.userPokes.filter(p => p.id !== poke.id);
+                    localStorage.setItem('userPokes_v28', JSON.stringify(state.userPokes));
+                    renderUserPokes();
+                };
+                item.appendChild(textDiv); item.appendChild(delBtn); list.appendChild(item);
+            });
+        };
+        
+        document.getElementById('userPokeAddBtn').addEventListener('click', () => {
+            const lines = document.getElementById('userPokeTextarea').value.split(/\r?\n/); let added = 0;
+            lines.forEach(line => { const txt = line.trim(); if (txt) { state.userPokes.push({ id: Date.now() + Math.random(), text: txt }); added++; } });
+            if (added > 0) { localStorage.setItem('userPokes_v28', JSON.stringify(state.userPokes)); renderUserPokes(); document.getElementById('userPokeTextarea').value = ''; }
+        });
+
+        const sendUserPokeText = (text) => {
+            checkAndInsertTimeSeparator();
+            const sysMsg = { id: 'sys_'+Date.now(), sender: 'system', type: 'sys', content: text, isDanger: false, timestamp: Date.now() };
+            state.chatHistory.push(sysMsg); saveChatHistory(); appendSingleMessage(sysMsg);
+            userPokeView.classList.remove('active');
+            triggerDreamReply();
+        };
+
+
+        // --- 上下文横向浮动菜单 ---
+        let currentQuoteText = "";
+        let currentQuoteSender = "";
+        const quoteBar = document.getElementById('quoteBar');
+        const quoteBarText = document.getElementById('quoteBarText');
+        const contextMenu = document.getElementById('contextMenu');
+        const menuAction = document.getElementById('menuAction');
+        const menuQuote = document.getElementById('menuQuote');
+        let currentBubbleData = null;
+
+        const setQuote = (text, sender) => {
+            currentQuoteText = text; currentQuoteSender = sender;
+            quoteBarText.innerHTML = `引用: ${formatQuoteHTML(sender, text)}`;
+            quoteBar.classList.add('active');
+        };
+        const clearQuote = () => { currentQuoteText = ""; currentQuoteSender = ""; quoteBar.classList.remove('active'); };
+        document.getElementById('closeQuoteBtn').onclick = clearQuote;
+
+        document.addEventListener('click', (e) => { if (!e.target.closest('.context-menu')) contextMenu.classList.remove('active'); });
+
+        const bindContextMenu = (el, isUser, timestamp, text, msgRowWrapper, senderName, msgId) => {
+            el.addEventListener('click', (e) => {
+                e.preventDefault(); e.stopPropagation();
+                currentBubbleData = { el, isUser, timestamp, text, msgRowWrapper, senderName, msgId };
+                
+                if (isUser) { menuAction.textContent = (Date.now() - timestamp < 60000) ? '撤回' : '删除'; } 
+                else { menuAction.textContent = '删除'; }
+
+                contextMenu.classList.add('active');
+                
+                const rect = el.getBoundingClientRect();
+                const menuRect = contextMenu.getBoundingClientRect();
+                
+                let x = rect.left + (rect.width / 2) - (menuRect.width / 2);
+                let y = rect.top - menuRect.height - 8;
+                
+                if (x < 10) x = 10;
+                if (x + menuRect.width > window.innerWidth - 10) x = window.innerWidth - menuRect.width - 10;
+                if (y < 50) y = rect.bottom + 8; 
+                
+                contextMenu.style.left = x + 'px';
+                contextMenu.style.top = y + 'px';
+            });
+        };
+
+        menuQuote.onclick = () => {
+            if (currentBubbleData) setQuote(currentBubbleData.text, currentBubbleData.senderName);
+            contextMenu.classList.remove('active');
+        };
+        menuAction.onclick = () => {
+            if (!currentBubbleData) return;
+            const action = menuAction.textContent;
+            
+            state.chatHistory = state.chatHistory.filter(m => m.id !== currentBubbleData.msgId);
+            saveChatHistory();
+            if(document.getElementById('historyView').classList.contains('active')) renderHistoryList();
+
+            if (action === '撤回') {
+                const sysRow = document.createElement('div');
+                sysRow.className = 'sys-time'; sysRow.textContent = '您撤回了一条消息';
+                currentBubbleData.msgRowWrapper.replaceWith(sysRow);
+            } else if (action === '删除') {
+                currentBubbleData.msgRowWrapper.remove();
+            }
+            contextMenu.classList.remove('active');
+        };
+
+        // --- 核心渲染引擎 (Render) ---
+        const createTransferCard = (amount, statusText, isUser, onAction, memo) => {
+            const tCard = document.createElement('div');
+            tCard.className = 'transfer-card' + (statusText !== '待确认' ? ' received' : '');
+            const subText = memo ? escapeHTML(memo) : '从Apple账户转账给***';
+            tCard.innerHTML = `
+                <div class="transfer-top">
+                    <svg class="apple-logo" viewBox="0 0 384 512"><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/></svg>
+                    <div class="transfer-content"><div class="transfer-amount">¥ ${amount}</div><div class="transfer-sub">${subText}</div></div>
+                </div>
+                <div class="transfer-bottom">${statusText}</div>
+            `;
+            if (onAction) { tCard.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); onAction(); }); }
+            return tCard;
+        };
+
+        const tActionOverlay = document.getElementById('transferActionOverlay');
+        const tActionSheet = document.getElementById('transferActionSheet');
+        let currentTransferCb = null; let currentTransferAmount = ""; let currentTransferMemo = ""; let currentTransferId = null;
+        
+        const closeTransferSheet = () => { tActionOverlay.classList.remove('active'); tActionSheet.classList.remove('active'); currentTransferCb = null; };
+        tActionOverlay.onclick = closeTransferSheet; document.getElementById('actionCancel').onclick = closeTransferSheet;
+        document.getElementById('actionReceive').onclick = () => {
+            if (currentTransferCb) currentTransferCb('已收款');
+            const msg = { id: 'msg_'+Date.now(), sender: 'user', type: 'transfer', content: currentTransferAmount, timeStr: getCurrentTimeStr(), timestamp: Date.now(), transferStatus: '已收款', transferMemo: currentTransferMemo };
+            state.chatHistory.push(msg); saveChatHistory(); appendSingleMessage(msg);
+            closeTransferSheet();
+        };
+        document.getElementById('actionReturn').onclick = () => {
+            if (currentTransferCb) currentTransferCb('已退回');
+            const msg = { id: 'msg_'+Date.now(), sender: 'user', type: 'transfer', content: currentTransferAmount, timeStr: getCurrentTimeStr(), timestamp: Date.now(), transferStatus: '已退回', transferMemo: currentTransferMemo };
+            state.chatHistory.push(msg); saveChatHistory(); appendSingleMessage(msg);
+            closeTransferSheet();
+        };
+
+        const appendSingleMessage = (msg) => {
+            if (msg.sender === 'system') {
+                const sysRow = document.createElement('div');
+                sysRow.className = 'sys-time' + (msg.isDanger ? ' danger' : '');
+                if (msg.isDanger === 'left') { sysRow.style.textAlign = 'left'; sysRow.style.paddingLeft = '14px'; sysRow.style.width = 'auto'; sysRow.style.marginRight = 'auto'; }
+                sysRow.innerHTML = msg.content;
+                chatContainer.appendChild(sysRow);
+                return;
+            }
+
+            const msgRow = document.createElement('div'); msgRow.className = `msg-row ${msg.sender === 'user' ? 'right' : 'left'}`;
+            msgRow.dataset.id = msg.id;
+            const wrapper = document.createElement('div'); wrapper.className = `msg-wrapper ${msg.sender === 'user' ? 'right-align' : 'left-align'}`;
+            let interactEl = null;
+
+            if (msg.type === 'text') {
+                const bubble = document.createElement('div'); bubble.className = msg.sender === 'user' ? 'text-bubble' : 'text-bubble-left';
+                bubble.appendChild(document.createTextNode(msg.content));
+                const metaSpan = document.createElement('span'); metaSpan.innerHTML = getMetaHtml(msg.timeStr);
+                bubble.appendChild(metaSpan.firstChild);
+                wrapper.appendChild(bubble);
+                interactEl = bubble;
+            } else if (msg.type === 'voice') {
+                const voiceSeconds = Math.max(1, Math.min(60, Math.ceil(msg.voiceText.length / 3)));
+                const bWidth = Math.min(240, 100 + voiceSeconds * 2);
+                const bubble = document.createElement('div'); bubble.className = 'text-bubble-left';
+                bubble.style.width = bWidth + 'px';
+                
+                bubble.innerHTML = `
+                    <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"></path>
+                            </svg>
+                            <span style="font-size: 15px; font-weight: 600;">${voiceSeconds}"</span>
+                        </div>
+                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="2" style="opacity:0.5;">
+                            <path d="M17.65 6.35A7.95 7.95 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"></path>
+                        </svg>
+                    </div>
+                `;
+                const vTextOutside = document.createElement('div'); vTextOutside.className = 'voice-text-outside hidden';
+                vTextOutside.textContent = msg.voiceText;
+                
+                bubble.onclick = (e) => { if (!e.target.closest('.context-menu')) { vTextOutside.classList.toggle('hidden'); } };
+                
+                wrapper.appendChild(bubble); wrapper.appendChild(vTextOutside);
+                interactEl = bubble;
+            } else if (msg.type === 'sticker' || msg.type === 'photo') {
+                const innerWrap = document.createElement('div'); innerWrap.style.display = 'flex'; innerWrap.style.alignItems = 'flex-end';
+                const img = document.createElement('img'); img.className = msg.sender === 'user' ? 'sticker-bubble-right' : 'sticker-bubble-left';
+                if(msg.type === 'photo') img.style.objectFit = 'cover';
+                img.src = msg.content;
+                innerWrap.appendChild(img);
+                
+                if (msg.sender === 'dream') {
+                    const metaDiv = document.createElement('div'); metaDiv.innerHTML = getMetaStickerHtml(msg.timeStr);
+                    innerWrap.appendChild(metaDiv.firstChild);
+                }
+                wrapper.appendChild(innerWrap);
+                interactEl = img;
+            } else if (msg.type === 'transfer') {
+                const tCard = createTransferCard(msg.content, msg.transferStatus, msg.sender === 'user', () => {
+                    if (msg.transferStatus === '待确认' && msg.sender === 'dream') {
+                        currentTransferAmount = msg.content; currentTransferMemo = msg.transferMemo; currentTransferId = msg.id;
+                        currentTransferCb = (action) => {
+                            msg.transferStatus = action; saveChatHistory();
+                            const b = tCard.querySelector('.transfer-bottom'); b.textContent = action; tCard.classList.add('received');
+                        };
+                        tActionOverlay.classList.add('active'); tActionSheet.classList.add('active');
+                    }
+                }, msg.transferMemo);
+                wrapper.appendChild(tCard);
+                interactEl = null; 
+            }
+
+            if (msg.quote) {
+                const quoteEl = document.createElement('div'); quoteEl.className = 'quote-outside';
+                quoteEl.innerHTML = msg.quote; wrapper.appendChild(quoteEl);
+            }
+
+            if (interactEl && msg.type !== 'transfer') {
+                bindContextMenu(interactEl, msg.sender === 'user', msg.timestamp, msg.type === 'text' ? msg.content : `[${msg.type === 'voice' ? '语音消息' : (msg.type==='photo'?'图片':'表情包')}]`, msgRow, msg.sender === 'user' ? state.userName : state.dreamName, msg.id);
+            }
+
+            msgRow.appendChild(wrapper); chatContainer.appendChild(msgRow);
+        };
+
+        const renderChatContainer = () => {
+            chatContainer.innerHTML = '';
+            state.chatHistory.forEach(msg => appendSingleMessage(msg));
+            setTimeout(() => { chatContainer.scrollTop = chatContainer.scrollHeight; }, 100);
+        };
+        renderChatContainer();
+
+        // --- 核心回复防刷屏逻辑 ---
+        let replyTimerIds = [];
+        let typingTimeoutClearer = null;
+
+        const triggerDreamReply = () => {
+            const hasTexts = state.zikas && state.zikas.length > 0;
+            const hasStickers = state.stickers && state.stickers.length > 0;
+            if (!hasTexts && !hasStickers) return;
+            
+            replyTimerIds.forEach(clearTimeout);
+            replyTimerIds = [];
+            if (typingTimeoutClearer) clearTimeout(typingTimeoutClearer);
+
+            const sMin = state.replySpeedMin;
+            const sMax = Math.max(sMin, state.replySpeedMax);
+            const delay = (Math.random() * (sMax - sMin) + sMin) * 1000;
+            
+            if (state.readNotReplyEnabled && Math.random() < state.readNotReplyProb / 100) {
+                els.typingIndicator.classList.add('active'); els.statusIndicator.style.opacity = '0';
+                let tId = setTimeout(() => {
+                    checkAndInsertTimeSeparator();
+                    const sysMsg = { id: 'sys_'+Date.now(), sender: 'system', type: 'sys', content: `${escapeHTML(state.dreamName)}<br>已读`, isDanger: 'left', timestamp: Date.now() };
+                    state.chatHistory.push(sysMsg); saveChatHistory(); appendSingleMessage(sysMsg);
+                    els.typingIndicator.classList.remove('active'); els.statusIndicator.style.opacity = '1';
+                    startAutoSendTimer(); 
+                }, delay);
+                replyTimerIds.push(tId);
+                return; 
+            }
+            
+            els.typingIndicator.classList.add('active'); els.statusIndicator.style.opacity = '0'; 
+            
+            const cMin = state.replyCountMin;
+            const cMax = Math.max(cMin, state.replyCountMax);
+            const count = Math.floor(Math.random() * (cMax - cMin + 1)) + cMin;
+
+            let tId = setTimeout(() => {
+                let notifyTexts = [];
+
+                if (Math.random() < 0.13 && state.transfers.length > 0) {
+                    const sendTs = checkAndInsertTimeSeparator();
+                    const amount = state.transfers[Math.floor(Math.random() * state.transfers.length)].text;
+                    const msg = { id: 'msg_'+Date.now(), sender: 'dream', type: 'transfer', content: amount, timeStr: getCurrentTimeStr(), timestamp: sendTs, transferStatus: '待确认', transferMemo: "" };
+                    state.chatHistory.push(msg); saveChatHistory(); appendSingleMessage(msg);
+                    notifyTexts.push('[向你转账]');
+                }
+
+                if (Math.random() < 0.13 && state.pokes.length > 0) {
+                    const sendTs = checkAndInsertTimeSeparator();
+                    const pokeText = state.pokes[Math.floor(Math.random() * state.pokes.length)].text;
+                    const msg = { id: 'sys_'+Date.now(), sender: 'system', type: 'sys', content: pokeText, isDanger: false, timestamp: sendTs };
+                    state.chatHistory.push(msg); saveChatHistory(); appendSingleMessage(msg);
+                    notifyTexts.push(pokeText);
+                }
+                
+                for (let i = 0; i < count; i++) {
+                    const sendTs = checkAndInsertTimeSeparator();
+                    let isSticker = false;
+                    if (hasTexts && hasStickers) { isSticker = Math.random() < 0.25; } 
+                    else if (hasStickers) { isSticker = true; }
+
+                    let willQuote = Math.random() < 0.15 && lastUserMessageText !== "";
+                    let quoteStr = willQuote ? formatQuoteHTML(state.userName, lastUserMessageText) : null;
+
+                    if (isSticker) {
+                        const stickerUrl = state.stickers[Math.floor(Math.random() * state.stickers.length)].url;
+                        const msg = { id: 'msg_'+Date.now()+'_'+i, sender: 'dream', type: 'sticker', content: stickerUrl, timeStr: getCurrentTimeStr(), timestamp: sendTs, quote: quoteStr };
+                        state.chatHistory.push(msg); saveChatHistory(); appendSingleMessage(msg);
+                        notifyTexts.push('[表情包]');
+                    } else {
+                        let textData = "";
+                        if (Math.random() < state.concatProb / 100 && state.zikas.length > 0) {
+                            const ccMin = state.concatMin; const ccMax = Math.max(ccMin, state.concatMax);
+                            const ccCount = Math.floor(Math.random() * (ccMax - ccMin + 1)) + ccMin;
+                            let textArr = [];
+                            for (let k = 0; k < ccCount; k++) textArr.push(state.zikas[Math.floor(Math.random() * state.zikas.length)].text);
+                            textData = textArr.join(' ');
+                        } else {
+                            const randomIdx = Math.floor(Math.random() * state.zikas.length); textData = state.zikas[randomIdx].text;
+                        }
+
+                        if (Math.random() < state.voiceProb / 100) {
+                            const msg = { id: 'msg_'+Date.now()+'_'+i, sender: 'dream', type: 'voice', content: "[语音消息]", voiceText: textData, timeStr: getCurrentTimeStr(), timestamp: sendTs, quote: quoteStr };
+                            state.chatHistory.push(msg); saveChatHistory(); appendSingleMessage(msg);
+                            notifyTexts.push('[语音消息]');
+                        } else {
+                            const msg = { id: 'msg_'+Date.now()+'_'+i, sender: 'dream', type: 'text', content: textData, timeStr: getCurrentTimeStr(), timestamp: sendTs, quote: quoteStr };
+                            state.chatHistory.push(msg); saveChatHistory(); appendSingleMessage(msg);
+                            notifyTexts.push(textData);
+                        }
+                    }
+                }
+
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+                els.typingIndicator.classList.remove('active'); els.statusIndicator.style.opacity = '1';
+                if (notifyTexts.length > 0) triggerNotification(notifyTexts[notifyTexts.length - 1]);
+                startAutoSendTimer(); 
+            }, delay);
+            replyTimerIds.push(tId);
+        };
+
+        const sendMessage = () => {
+            const text = messageInput.value.trim();
+            if (!text && !currentQuoteText) return; 
+            if (!text) return; 
+            
+            els.actionPanel.classList.remove('active');
+            userStickerView.classList.remove('active');
+            
+            lastUserMessageText = text; 
+            const sendTs = checkAndInsertTimeSeparator();
+            
+            const quoteStr = currentQuoteText ? formatQuoteHTML(currentQuoteSender, currentQuoteText) : null;
+            const msg = { id: 'msg_'+Date.now(), sender: 'user', type: 'text', content: text, timeStr: getCurrentTimeStr(), timestamp: sendTs, quote: quoteStr };
+            
+            state.chatHistory.push(msg); saveChatHistory(); appendSingleMessage(msg);
+            
+            clearQuote();
+            messageInput.value = '';
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            triggerDreamReply();
+        };
+        
+        document.getElementById('sendBtn').addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendMessage(); }});
+
+        // 基础设置交互绑定
+        const handleFileUpload = (fileInputId, callback) => {
+            const fileInput = document.getElementById(fileInputId);
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        try { compressImage(event.target.result, callback); } catch(err) { alert('处理图片失败'); }
+                    };
+                    reader.readAsDataURL(file);
+                }
+                fileInput.value = '';
+            });
+        };
+        
+        document.getElementById('dreamAvatarBtn').addEventListener('click', () => document.getElementById('dreamAvatarInput').click());
+        handleFileUpload('dreamAvatarInput', (res) => { state.dreamAvatar = res; localStorage.setItem('dreamAvatar_v28', res); applyBaseState(); });
+        document.getElementById('changeUserAvatarBtn').addEventListener('click', () => document.getElementById('userAvatarInput').click());
+        handleFileUpload('userAvatarInput', (res) => { state.userAvatar = res; localStorage.setItem('userAvatar_v28', res); applyBaseState(); });
+        document.getElementById('nicknameInput').addEventListener('input', (e) => {
+            state.userName = e.target.value.trim() || '弯弯'; localStorage.setItem('userName_v28', state.userName); document.getElementById('profileNameDisplay').textContent = state.userName;
+        });
+
+        const bindColorPicker = (id, key, cssVar) => {
+            document.getElementById(id).addEventListener('input', (e) => {
+                state[key] = e.target.value; localStorage.setItem(key + '_v28', e.target.value); document.documentElement.style.setProperty(cssVar, e.target.value);
+            });
+        };
+        bindColorPicker('userBubbleColorPicker', 'userBubbleColor', '--user-bubble-bg'); bindColorPicker('dreamBubbleColorPicker', 'dreamBubbleColor', '--dream-bubble-bg');
+        bindColorPicker('userFontColorPicker', 'userFontColor', '--user-font-color'); bindColorPicker('dreamFontColorPicker', 'dreamFontColor', '--dream-font-color'); bindColorPicker('globalIconColorPicker', 'globalIconColor', '--global-icon-color');
+
+        els.characterName.addEventListener('input', () => { state.dreamName = els.characterName.textContent.trim(); localStorage.setItem('dreamName_v28', state.dreamName); });
+        els.characterName.addEventListener('blur', () => { state.dreamName = els.characterName.textContent.trim(); localStorage.setItem('dreamName_v28', state.dreamName); });
+        els.characterName.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); els.characterName.blur(); }});
+
+        const updateReplyRange = (key, minEl, maxEl, isFloat) => {
+            let minV = isFloat ? parseFloat(minEl.value) : parseInt(minEl.value);
+            let maxV = isFloat ? parseFloat(maxEl.value) : parseInt(maxEl.value);
+            if (isNaN(minV)) minV = isFloat ? 1.0 : 1; if (isNaN(maxV)) maxV = isFloat ? 1.0 : 1;
+            if (minV > maxV) maxV = minV; 
+            state[key + 'Min'] = minV; state[key + 'Max'] = maxV;
+            localStorage.setItem(key + 'Min_v28', minV); localStorage.setItem(key + 'Max_v28', maxV);
+            minEl.value = minV; maxEl.value = maxV;
+        };
+        [els.rcMin, els.rcMax].forEach(el => el.addEventListener('change', () => updateReplyRange('replyCount', els.rcMin, els.rcMax, false)));
+        [els.rsMin, els.rsMax].forEach(el => el.addEventListener('change', () => updateReplyRange('replySpeed', els.rsMin, els.rsMax, true)));
+        [els.ccMin, els.ccMax].forEach(el => el.addEventListener('change', () => updateReplyRange('concat', els.ccMin, els.ccMax, false)));
+        
+        els.ccProb.addEventListener('change', (e) => {
+            let val = parseInt(e.target.value); if (isNaN(val) || val < 0) val = 0; if (val > 100) val = 100;
+            state.concatProb = val; localStorage.setItem('concatProb_v28', val); e.target.value = val;
+        });
+        if (els.voiceProb) {
+            els.voiceProb.addEventListener('change', (e) => {
+                let val = parseInt(e.target.value); if (isNaN(val) || val < 0) val = 0; if (val > 100) val = 100;
+                state.voiceProb = val; localStorage.setItem('voiceProb_v28', val); e.target.value = val;
+            });
+        }
+
+        // --- 聊天记录管理 View (History) ---
+        const historyListContainer = document.getElementById('historyListContainer');
+        const renderHistoryList = () => {
+            historyListContainer.innerHTML = '';
+            if (state.chatHistory.length === 0) { historyListContainer.innerHTML = '<div class="empty-state">暂无聊天记录</div>'; return; }
+            state.chatHistory.forEach(msg => {
+                const item = document.createElement('div'); item.className = 'zika-item';
+                const checkbox = document.createElement('div'); checkbox.className = 'c-checkbox ' + (state.isHistoryBatchMode ? '' : 'hidden');
+                if (state.selectedHistory.has(msg.id)) checkbox.classList.add('checked');
+                checkbox.onclick = (e) => {
+                    e.stopPropagation();
+                    if (state.selectedHistory.has(msg.id)) { state.selectedHistory.delete(msg.id); checkbox.classList.remove('checked'); }
+                    else { state.selectedHistory.add(msg.id); checkbox.classList.add('checked'); }
+                };
+                
+                const textDiv = document.createElement('div'); textDiv.className = 'zika-text'; 
+                let preview = msg.type === 'text' ? msg.content : (msg.type === 'voice' ? '[语音]' : (msg.type === 'sticker' || msg.type === 'photo' ? '[图片/表情包]' : (msg.type === 'transfer' ? '[转账]' : msg.content)));
+                textDiv.textContent = `[${msg.timeStr || '-'}] ${msg.sender === 'user' ? state.userName : (msg.sender === 'dream' ? state.dreamName : '系统')}: ${preview}`;
+                
+                item.appendChild(checkbox); item.appendChild(textDiv);
+                historyListContainer.appendChild(item);
+            });
+        };
+
+        document.getElementById('historySelectAllBtn').addEventListener('click', () => {
+            if (state.selectedHistory.size === state.chatHistory.length && state.chatHistory.length > 0) {
+                state.selectedHistory.clear();
+            } else {
+                state.chatHistory.forEach(m => state.selectedHistory.add(m.id));
+            }
+            renderHistoryList();
+        });
+
+        document.getElementById('historyDeleteBtn').addEventListener('click', () => {
+            if (state.selectedHistory.size === 0) return alert('请选择要删除的记录');
+            if (confirm(`确定要删除选中的 ${state.selectedHistory.size} 条记录吗？`)) {
+                state.chatHistory = state.chatHistory.filter(m => !state.selectedHistory.has(m.id));
+                saveChatHistory(); state.selectedHistory.clear(); renderHistoryList(); renderChatContainer();
+            }
+        });
+        
+        const historySaveOverlay = document.getElementById('historySaveOverlay');
+        const historySaveSheet = document.getElementById('historySaveSheet');
+        document.getElementById('historySaveBtn').addEventListener('click', () => {
+            if (state.selectedHistory.size === 0) return alert('请选择要保存的记录');
+            historySaveOverlay.classList.add('active'); historySaveSheet.classList.add('active');
+        });
+        const closeHistorySave = () => { historySaveOverlay.classList.remove('active'); historySaveSheet.classList.remove('active'); };
+        historySaveOverlay.onclick = closeHistorySave; document.getElementById('actionCancelSave').onclick = closeHistorySave;
+        
+        document.getElementById('actionNormalSave').onclick = () => {
+            alert('已正常保存选中记录');
+            state.selectedHistory.clear();
+            renderHistoryList();
+            closeHistorySave();
+        };
+
+        document.getElementById('actionExportSave').onclick = () => {
+            const selected = state.chatHistory.filter(m => state.selectedHistory.has(m.id));
+            const text = selected.map(m => `[${m.timeStr || '-'}] ${m.sender === 'user' ? state.userName : (m.sender === 'dream' ? state.dreamName : '系统')}: ${m.type === 'text' ? m.content : (m.type === 'voice' ? '[语音] '+m.voiceText : (m.type === 'sticker' || m.type === 'photo' ? '[图片/表情包]' : (m.type === 'transfer' ? '[转账 ¥'+m.content+']' : m.content)))}`).join('\n');
+            const blob = new Blob([text], {type: "text/plain;charset=utf-8"});
+            const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "chat_history.txt"; link.click();
+            
+            state.selectedHistory.clear(); renderHistoryList(); closeHistorySave();
+        };
+
+        // 其余子页面逻辑 (表情包强压缩保存)
+        const stickerListContainer = document.getElementById('stickerListContainer');
+        const saveStickers = () => {
+            try { localStorage.setItem('stickers_v28', JSON.stringify(state.stickers)); } 
+            catch(e) { alert('存储空间不足！由于浏览器缓存限制，无法保存更多梦角表情包，请先删除部分。'); state.stickers.pop(); }
+        };
+        window.deleteStickerItem = (id) => { state.stickers = state.stickers.filter(s => s.id !== id); saveStickers(); renderStickers(); };
+        const toggleStickerBatchBtn = document.getElementById('toggleStickerBatchBtn');
+        const stickerBatchBar = document.getElementById('stickerBatchBar');
+        const toggleStickerBatchMode = (force) => {
+            state.isStickerBatchMode = force !== undefined ? force : !state.isStickerBatchMode;
+            toggleStickerBatchBtn.textContent = state.isStickerBatchMode ? '取消' : '选择';
+            if (state.isStickerBatchMode) { stickerBatchBar.classList.add('active'); } else { stickerBatchBar.classList.remove('active'); state.selectedStickers.clear(); }
+            renderStickers();
+        };
+        toggleStickerBatchBtn.onclick = () => toggleStickerBatchMode();
+        document.getElementById('stickerBatchDeleteBtn').onclick = () => {
+            if (state.selectedStickers.size === 0) { alert('请选择表情包'); return; }
+            if (confirm(`确定要删除吗？`)) { state.stickers = state.stickers.filter(s => !state.selectedStickers.has(s.id)); saveStickers(); toggleStickerBatchMode(false); }
+        };
+        const renderStickers = () => {
+            stickerListContainer.innerHTML = '';
+            state.stickers.forEach(sticker => {
+                const item = document.createElement('div'); item.className = 'sticker-item';
+                const checkbox = document.createElement('div'); checkbox.className = 'c-checkbox sticker-checkbox ' + (state.isStickerBatchMode ? '' : 'hidden');
+                if (state.selectedStickers.has(sticker.id)) checkbox.classList.add('checked');
+                checkbox.onclick = (e) => { e.stopPropagation(); if (state.selectedStickers.has(sticker.id)) { state.selectedStickers.delete(sticker.id); checkbox.classList.remove('checked'); } else { state.selectedStickers.add(sticker.id); checkbox.classList.add('checked'); } };
+                const img = document.createElement('img'); img.src = sticker.url;
+                const delBtn = document.createElement('button'); delBtn.type = 'button'; delBtn.className = 'sticker-del ' + (state.isStickerBatchMode ? 'hidden' : '');
+                delBtn.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
+                const deleteAction = (e) => { e.preventDefault(); e.stopPropagation(); window.deleteStickerItem(sticker.id); };
+                delBtn.onclick = deleteAction; delBtn.ontouchend = deleteAction;
+                item.appendChild(img); item.appendChild(checkbox); item.appendChild(delBtn); stickerListContainer.appendChild(item);
+            });
+        };
+        const stickerFileInput = document.getElementById('stickerFileInput');
+        document.getElementById('stickerUploadBtn').addEventListener('click', () => stickerFileInput.click());
+        stickerFileInput.addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length > 0) {
+                let loaded = 0;
+                files.forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = (event) => { compressImage(event.target.result, (compressedData) => { state.stickers.push({ id: Date.now() + Math.random(), url: compressedData }); loaded++; if (loaded === files.length) { saveStickers(); renderStickers(); } }); };
+                    reader.readAsDataURL(file);
+                });
+            }
+            stickerFileInput.value = '';
+        });
+
+        const pokeListContainer = document.getElementById('pokeListContainer');
+        const pokeTextarea = document.getElementById('pokeTextarea');
+        const savePokes = () => localStorage.setItem('pokes_v28', JSON.stringify(state.pokes));
+        const renderPokes = () => {
+            pokeListContainer.innerHTML = '';
+            if (state.pokes.length === 0) { pokeListContainer.innerHTML = '<div class="empty-state">暂无拍一拍内容</div>'; return; }
+            state.pokes.forEach(poke => {
+                const item = document.createElement('div'); item.className = 'zika-item';
+                const textDiv = document.createElement('div'); textDiv.className = 'zika-text'; textDiv.textContent = poke.text;
+                const delBtn = document.createElement('button'); delBtn.className = 'zika-delete-btn';
+                delBtn.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
+                delBtn.onclick = () => { state.pokes = state.pokes.filter(p => p.id !== poke.id); savePokes(); renderPokes(); };
+                item.appendChild(textDiv); item.appendChild(delBtn); pokeListContainer.appendChild(item);
+            });
+        };
+        document.getElementById('pokeAddBtn').addEventListener('click', () => {
+            const lines = pokeTextarea.value.split(/\r?\n/); let added = 0;
+            lines.forEach(line => { const txt = line.trim(); if (txt) { state.pokes.push({ id: Date.now() + Math.random(), text: txt }); added++; } });
+            if (added > 0) { savePokes(); renderPokes(); pokeTextarea.value = ''; }
+        });
+        
+        const transferListContainer = document.getElementById('transferListContainer');
+        const transferTextarea = document.getElementById('transferTextarea');
+        const saveTransfers = () => localStorage.setItem('transfers_v28', JSON.stringify(state.transfers));
+        const renderTransfers = () => {
+            transferListContainer.innerHTML = '';
+            if (state.transfers.length === 0) { transferListContainer.innerHTML = '<div class="empty-state">暂无转账金额配置</div>'; return; }
+            state.transfers.forEach(transfer => {
+                const item = document.createElement('div'); item.className = 'zika-item';
+                const textDiv = document.createElement('div'); textDiv.className = 'zika-text'; textDiv.textContent = transfer.text;
+                const delBtn = document.createElement('button'); delBtn.className = 'zika-delete-btn';
+                delBtn.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
+                delBtn.onclick = () => { state.transfers = state.transfers.filter(p => p.id !== transfer.id); saveTransfers(); renderTransfers(); };
+                item.appendChild(textDiv); item.appendChild(delBtn); transferListContainer.appendChild(item);
+            });
+        };
+        document.getElementById('transferAddBtn').addEventListener('click', () => {
+            const lines = transferTextarea.value.split(/\r?\n/); let added = 0;
+            lines.forEach(line => { const txt = line.trim(); if (txt) { state.transfers.push({ id: Date.now() + Math.random(), text: txt }); added++; } });
+            if (added > 0) { saveTransfers(); renderTransfers(); transferTextarea.value = ''; }
+        });
+
+        const statusListContainer = document.getElementById('statusListContainer');
+        const statusTextarea = document.getElementById('statusTextarea');
+        const saveStatuses = () => localStorage.setItem('statuses_v28', JSON.stringify(state.statuses));
+        const renderStatuses = () => {
+            statusListContainer.innerHTML = '';
+            if (state.statuses.length === 0) { statusListContainer.innerHTML = '<div class="empty-state">暂无状态内容</div>'; return; }
+            state.statuses.forEach(st => {
+                const item = document.createElement('div'); item.className = 'zika-item';
+                const textDiv = document.createElement('div'); textDiv.className = 'zika-text'; textDiv.textContent = st.text;
+                const delBtn = document.createElement('button'); delBtn.className = 'zika-delete-btn';
+                delBtn.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
+                delBtn.onclick = () => { state.statuses = state.statuses.filter(p => p.id !== st.id); saveStatuses(); renderStatuses(); };
+                item.appendChild(textDiv); item.appendChild(delBtn); statusListContainer.appendChild(item);
+            });
+        };
+        document.getElementById('statusAddBtn').addEventListener('click', () => {
+            const lines = statusTextarea.value.split(/\r?\n/); let added = 0;
+            lines.forEach(line => { const txt = line.trim(); if (txt) { state.statuses.push({ id: Date.now() + Math.random(), text: txt }); added++; } });
+            if (added > 0) { saveStatuses(); renderStatuses(); statusTextarea.value = ''; }
+        });
+
+        const zikaListContainer = document.getElementById('zikaListContainer');
+        const zikaCategoryTabs = document.getElementById('zikaCategoryTabs');
+        const zikaSearchInput = document.getElementById('zikaSearchInput');
+        const zikaTextarea = document.getElementById('zikaTextarea');
+        const saveZikas = () => { localStorage.setItem('zikas_v28', JSON.stringify(state.zikas)); renderCategoryTabs(); };
+        const saveCategories = () => { localStorage.setItem('categories_v28', JSON.stringify(state.categories)); renderCategoryTabs(); };
+
+        const renderCategoryTabs = () => {
+            zikaCategoryTabs.innerHTML = '';
+            const createTab = (name, count, isAll) => {
+                const tab = document.createElement('div'); tab.className = 'zika-tab ' + (state.activeFilter === (isAll ? '全部字卡' : name) ? 'active' : '');
+                tab.textContent = `${name} (${count})`;
+                tab.onclick = () => { state.activeFilter = isAll ? '全部字卡' : name; renderCategoryTabs(); renderZikas(zikaSearchInput.value); }; return tab;
+            };
+            zikaCategoryTabs.appendChild(createTab('全部字卡', state.zikas.length, true));
+            state.categories.forEach(cat => { const count = state.zikas.filter(z => z.category === cat).length; zikaCategoryTabs.appendChild(createTab(cat, count, false)); });
+        };
+        const renderZikas = (filterText = '') => {
+            let filtered = state.zikas;
+            if (state.activeFilter !== '全部字卡') filtered = filtered.filter(z => z.category === state.activeFilter);
+            filtered = filtered.filter(z => z.text.toLowerCase().includes(filterText.toLowerCase()));
+            zikaListContainer.innerHTML = '';
+            if (filtered.length === 0) { zikaListContainer.innerHTML = '<div class="empty-state">暂无符合条件的字卡</div>'; return; }
+            filtered.forEach(zika => {
+                const item = document.createElement('div'); item.className = 'zika-item';
+                const checkbox = document.createElement('div'); checkbox.className = 'c-checkbox ' + (state.isBatchMode ? '' : 'hidden');
+                if (state.selectedZikas.has(zika.id)) checkbox.classList.add('checked');
+                checkbox.onclick = (e) => { e.stopPropagation(); if (state.selectedZikas.has(zika.id)) { state.selectedZikas.delete(zika.id); checkbox.classList.remove('checked'); } else { state.selectedZikas.add(zika.id); checkbox.classList.add('checked'); } };
+                const textDiv = document.createElement('div'); textDiv.className = 'zika-text'; textDiv.textContent = zika.text;
+                const tagDiv = document.createElement('div'); tagDiv.className = 'zika-tag'; tagDiv.textContent = zika.category;
+                const delBtn = document.createElement('button'); delBtn.className = 'zika-delete-btn ' + (state.isBatchMode ? 'hidden' : ''); delBtn.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
+                delBtn.onclick = () => { state.zikas = state.zikas.filter(z => z.id !== zika.id); saveZikas(); renderZikas(zikaSearchInput.value); };
+                item.appendChild(checkbox); item.appendChild(textDiv); item.appendChild(tagDiv); item.appendChild(delBtn); zikaListContainer.appendChild(item);
+            });
+        };
+        const addZikasFromText = (textStr) => {
+            const lines = textStr.split(/\r?\n/); let addedCount = 0;
+            lines.forEach(line => { const txt = line.trim(); if (txt) { state.zikas.push({ id: Date.now() + Math.random(), text: txt, category: state.currentCategory }); addedCount++; } });
+            if (addedCount > 0) { saveZikas(); renderZikas(zikaSearchInput.value); }
+        };
+
+        document.getElementById('zikaAddBtn').addEventListener('click', () => { addZikasFromText(zikaTextarea.value); zikaTextarea.value = ''; });
+        const zikaFileInput = document.getElementById('zikaFileInput');
+        document.getElementById('zikaUploadBtn').addEventListener('click', () => zikaFileInput.click());
+        zikaFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const content = event.target.result;
+                    if (file.name.endsWith('.json')) {
+                        try {
+                            const data = JSON.parse(content);
+                            if (data.customReplies && Array.isArray(data.customReplies)) { addZikasFromText(data.customReplies.join('\n')); alert(`成功导入 ${data.customReplies.length} 条字卡！`); return; }
+                        } catch(err) { }
+                    }
+                    addZikasFromText(content);
+                };
+                reader.readAsText(file);
+            }
+            zikaFileInput.value = '';
+        });
+        zikaSearchInput.addEventListener('input', (e) => renderZikas(e.target.value));
+
+        const toggleBatchBtn = document.getElementById('toggleBatchBtn'); const batchBar = document.getElementById('batchBar');
+        const toggleBatchMode = (force) => {
+            state.isBatchMode = force !== undefined ? force : !state.isBatchMode;
+            toggleBatchBtn.textContent = state.isBatchMode ? '取消' : '选择';
+            if (state.isBatchMode) { batchBar.classList.add('active'); document.querySelectorAll('#zikaListContainer .c-checkbox').forEach(el => el.classList.remove('hidden')); document.querySelectorAll('#zikaListContainer .zika-delete-btn').forEach(el => el.classList.add('hidden')); } 
+            else { batchBar.classList.remove('active'); state.selectedZikas.clear(); renderZikas(zikaSearchInput.value); }
+        };
+        toggleBatchBtn.onclick = () => toggleBatchMode();
+
+        document.getElementById('batchDeleteBtn').onclick = () => {
+            if (state.selectedZikas.size === 0) return alert('请选择需要删除的字卡');
+            if (confirm(`确定要删除选中的 ${state.selectedZikas.size} 条字卡吗？`)) { state.zikas = state.zikas.filter(z => !state.selectedZikas.has(z.id)); saveZikas(); toggleBatchMode(false); renderZikas(zikaSearchInput.value); }
+        };
+
+        const catOverlay = document.getElementById('categorySheetOverlay'); const catSheet = document.getElementById('categorySheet');
+        const catListContainer = document.getElementById('categoryListContainer');
+        const formatCatBtnText = (cat) => '分类: ' + (cat.length > 5 ? cat.substring(0,4) + '...' : cat);
+
+        const openSheet = (mode) => { state.sheetMode = mode; renderCategoriesSheet(); catOverlay.classList.add('active'); catSheet.classList.add('active'); };
+        const closeSheet = () => { catOverlay.classList.remove('active'); catSheet.classList.remove('active'); };
+        catOverlay.onclick = closeSheet;
+
+        document.getElementById('zikaSelectCatBtn').onclick = () => openSheet('select');
+        document.getElementById('batchCategoryBtn').onclick = () => { if (state.selectedZikas.size === 0) return alert('请先选择字卡'); openSheet('batch'); };
+
+        const renderCategoriesSheet = () => {
+            catListContainer.innerHTML = '';
+            state.categories.forEach(cat => {
+                const count = state.zikas.filter(z => z.category === cat).length;
+                const item = document.createElement('div'); item.className = 'cat-item';
+                const nameDiv = document.createElement('div'); nameDiv.className = 'cat-name'; nameDiv.textContent = `${cat} (${count})`;
+                nameDiv.onclick = () => {
+                    if (state.sheetMode === 'select') { state.currentCategory = cat; document.getElementById('zikaSelectCatBtn').textContent = formatCatBtnText(cat); closeSheet(); } 
+                    else if (state.sheetMode === 'batch') { state.zikas.forEach(z => { if (state.selectedZikas.has(z.id)) z.category = cat; }); saveZikas(); toggleBatchMode(false); closeSheet(); renderZikas(zikaSearchInput.value); }
+                };
+                item.appendChild(nameDiv);
+                if (cat !== '未分类') {
+                    const del = document.createElement('div'); del.className = 'cat-del';
+                    del.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"></path></svg>';
+                    del.onclick = (e) => {
+                        e.stopPropagation(); state.categories = state.categories.filter(c => c !== cat); state.zikas.forEach(z => { if (z.category === cat) z.category = '未分类'; });
+                        if (state.currentCategory === cat) { state.currentCategory = '未分类'; document.getElementById('zikaSelectCatBtn').textContent = formatCatBtnText('未分类'); }
+                        if (state.activeFilter === cat) state.activeFilter = '全部字卡'; saveCategories(); saveZikas(); renderCategoriesSheet(); renderZikas(zikaSearchInput.value);
+                    };
+                    item.appendChild(del);
+                }
+                catListContainer.appendChild(item);
+            });
+        };
+        document.getElementById('addCategoryBtn').onclick = () => {
+            const val = document.getElementById('newCategoryInput').value.trim();
+            if (val && !state.categories.includes(val)) { state.categories.push(val); saveCategories(); document.getElementById('newCategoryInput').value = ''; renderCategoriesSheet(); }
+        };
+
+        const views = {
+            chat: document.getElementById('chatView'), settings: document.getElementById('settingsView'),
+            baseSettings: document.getElementById('baseSettingsView'), replySettings: document.getElementById('replySettingsView'),
+            sticker: document.getElementById('stickerView'), zika: document.getElementById('zikaView'), 
+            poke: document.getElementById('pokeView'), status: document.getElementById('statusView'), 
+            transfer: document.getElementById('transferView'), userSticker: document.getElementById('userStickerView'),
+            userPoke: document.getElementById('userPokeView'), history: document.getElementById('historyView')
+        };
+        const closeSubMenu = (subView) => { subView.classList.remove('active'); views.settings.style.transform = ''; views.settings.style.opacity = ''; };
+        const openSubMenu = (subView) => { subView.classList.add('active'); views.settings.style.transform = 'translateX(-30%)'; views.settings.style.opacity = '0.5'; };
+
+        document.getElementById('openSettingsBtn').addEventListener('click', () => { views.settings.classList.add('active'); views.chat.classList.add('hidden'); });
+        document.getElementById('closeSettingsBtn').addEventListener('click', () => { views.settings.classList.remove('active'); views.chat.classList.remove('hidden'); });
+        
+        document.getElementById('openBaseSettingsBtn').addEventListener('click', () => openSubMenu(views.baseSettings));
+        document.getElementById('closeBaseSettingsBtn').addEventListener('click', () => closeSubMenu(views.baseSettings));
+        
+        document.getElementById('openReplyBtn').addEventListener('click', () => openSubMenu(views.replySettings));
+        document.getElementById('closeReplySettingsBtn').addEventListener('click', () => closeSubMenu(views.replySettings));
+        
+        document.getElementById('openStickerBtn').addEventListener('click', () => { openSubMenu(views.sticker); renderStickers(); });
+        document.getElementById('closeStickerBtn').addEventListener('click', () => { if(state.isStickerBatchMode) toggleStickerBatchMode(false); closeSubMenu(views.sticker);});
+        
+        document.getElementById('openTransferBtn').addEventListener('click', () => { openSubMenu(views.transfer); renderTransfers(); });
+        document.getElementById('closeTransferBtn').addEventListener('click', () => closeSubMenu(views.transfer));
+        
+        document.getElementById('openPokeBtn').addEventListener('click', () => { openSubMenu(views.poke); renderPokes(); });
+        document.getElementById('closePokeBtn').addEventListener('click', () => closeSubMenu(views.poke));
+        
+        document.getElementById('openStatusBtn').addEventListener('click', () => { openSubMenu(views.status); renderStatuses(); });
+        document.getElementById('closeStatusBtn').addEventListener('click', () => closeSubMenu(views.status));
+        
+        document.getElementById('openHistoryBtn').addEventListener('click', () => { openSubMenu(views.history); renderHistoryList(); });
+        document.getElementById('closeHistoryBtn').addEventListener('click', () => closeSubMenu(views.history));
+        
+        document.getElementById('openZikaBtn').addEventListener('click', () => { openSubMenu(views.zika); renderCategoryTabs(); renderZikas(); });
+        document.getElementById('closeZikaBtn').addEventListener('click', () => { if (state.isBatchMode) toggleBatchMode(false); closeSubMenu(views.zika); });
+
+    });
+</script>
+</body>
+</html>
